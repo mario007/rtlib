@@ -6,8 +6,7 @@ include = [
     "src/**/*",
     "Cargo.toml",
     "README.md",
-    "LICENCE",
-    "src/rng.rs"
+    "LICENCE"
 ]
 
 homepage = "https://github.com/mario007/rtlib"
