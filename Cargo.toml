@@ -1,12 +1,13 @@
 [package]
 name = "rtlib"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 include = [
     "src/**/*",
     "Cargo.toml",
     "README.md",
-    "LICENCE"
+    "LICENCE",
+    "src/rng.rs"
 ]
 
 homepage = "https://github.com/mario007/rtlib"

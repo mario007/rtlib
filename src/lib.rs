@@ -1,14 +1,6 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+//! Ray tracing library
+//!
+//! This low-level library contains all that you need to develop all kinds off ray tracers.
+//! It has random number generator, 3D vector math library, ...
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub mod rng;
