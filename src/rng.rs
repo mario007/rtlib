@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 
 /// A trait providing methods for generating random numbers

@@ -4,3 +4,5 @@
 //! It has random number generator, 3D vector math library. 
 
 pub mod rng;
+pub mod math;
+pub mod vec;
