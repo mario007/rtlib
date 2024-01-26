@@ -6,3 +6,4 @@
 pub mod rng;
 pub mod math;
 pub mod vec;
+pub mod isect;
