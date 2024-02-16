@@ -11,7 +11,7 @@ pub trait Rng {
         (self.rand_u32() >> 8) as f32 * val
     }
 
-    /// Generate u32 random number in range [0-range]
+    /// Generate u32 random number in range [0-range)
     fn rand_range(&mut self, range: u32) -> u32 {
         let x = self.rand_u32();
         let m = (x as u64) * (range as u64);

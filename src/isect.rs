@@ -18,7 +18,7 @@ pub fn isect_ray_sphere(origin: Vec3, direction: Vec3, position: Vec3, radius: f
     let discriminant = radius * radius - tmp * tmp;
 
     if discriminant < 0.0 {
-        return None;
+        None
     } else {
         let q = b_prime + b_prime.signum() * discriminant.sqrt();
         let t = c / q;
@@ -34,7 +34,7 @@ pub fn isect_ray_sphere(origin: Vec3, direction: Vec3, position: Vec3, radius: f
 }
 
 
-pub fn isect_ray_sphere2(origin: Vec3, direction: Vec3, position: Vec3, radius: f32, tmax: f32) -> Option<f32>{
+fn isect_ray_sphere2(origin: Vec3, direction: Vec3, position: Vec3, radius: f32, tmax: f32) -> Option<f32>{
     let ox = origin.x as f64;
     let oy = origin.y as f64;
     let oz = origin.z as f64;
@@ -60,7 +60,7 @@ pub fn isect_ray_sphere2(origin: Vec3, direction: Vec3, position: Vec3, radius: 
     let discriminant = b * b - 4.0 * a * c;
 
     if discriminant < 0.0 {
-        return None;
+        None
     } else {
         let e = discriminant.sqrt();
         let denom = 2.0 * a;
@@ -97,7 +97,20 @@ mod tests {
 
     #[test]
     fn isect_sphere2_test() {
-        let origin = Vec3::new(0.0, 0.5, -500.0);
+        let origin = Vec3::new(0.0, 0.5, 0.0);
+        let direction = Vec3::new(0.0, 0.0, -1.0).normalize();
+        let position = Vec3::new(0.0, 0.0, 1.0);
+        let radius = 20.0;
+        let tmax = 1000.0;
+        let t1 = isect_ray_sphere(origin , direction, position, radius, tmax);
+        let t2 = isect_ray_sphere2(origin , direction, position, radius, tmax);
+        println!("{:?}", t1);
+        println!("{:?}", t2);
+    }
+
+    #[test]
+    fn isect_sphere3_test() {
+        let origin = Vec3::new(0.0, 1.0, 0.0);
         let direction = Vec3::new(0.0, 0.0, 1.0).normalize();
         let position = Vec3::new(0.0, 0.0, 1.0);
         let radius = 1.0;

@@ -28,7 +28,7 @@ pub fn murmur_hash_64_a(key: &[u8], seed: u64) -> u64 {
     for i in (0..rest.len()).rev() {
         h ^= (rest[i] as u64) << (i * 8);
     }
-    if rest.len() > 0 {
+    if !rest.is_empty() {
         h = h.wrapping_mul(m);
     }
 
@@ -36,7 +36,7 @@ pub fn murmur_hash_64_a(key: &[u8], seed: u64) -> u64 {
     h = h.wrapping_mul(m);
     h ^= h >> r;
 
-    return h;
+    h
 }
 
 /// Convert arguments to byte array and call function that calculate murmurhash

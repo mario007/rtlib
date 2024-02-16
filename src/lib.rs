@@ -7,4 +7,5 @@ pub mod rng;
 pub mod math;
 pub mod vec;
 pub mod hash;
+pub mod matrix;
 pub mod isect;
