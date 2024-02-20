@@ -23,7 +23,7 @@ fn two_product_fma(a: f32, b: f32) -> (f32, f32) {
     (x, y)
 }
 
-/// Inner product in twice the working precision
+/// calculate inner product in twice the working precision
 pub fn inner_product(x: &[f32], y: &[f32]) -> f32 {
     let (mut p, mut s) = two_product_fma(x[0], y[0]);
     for i in 1..x.len() {
@@ -35,10 +35,54 @@ pub fn inner_product(x: &[f32], y: &[f32]) -> f32 {
     p + s
 }
 
+
+/// Return premutated index
+/// 
+/// * `index`: number to permutate.
+/// * `n`: Total numbers used in permutation.
+/// * `seed`: used for permutation.
+#[inline]
+pub fn permutation_element(index: u32, n: u32, seed: u32) -> u32 {
+    let mut i = index;
+    let mut w = n - 1;
+    w |= w >> 1;
+    w |= w >> 2;
+    w |= w >> 4;
+    w |= w >> 8;
+    w |= w >> 16;
+
+    loop {
+        i ^= seed;
+        i = i.wrapping_mul(0xe170893d);
+        i ^= seed >> 16;
+        i ^= (i & w) >> 4;
+        i ^= seed >> 8;
+        i = i.wrapping_mul(0x0929eb3f);
+        i ^= seed >> 23;
+        i ^= (i & w) >> 1;
+        i *= 1 | seed >> 27;
+        i = i.wrapping_mul(0x6935fa69);
+        i ^= (i & w) >> 11;
+        i = i.wrapping_mul(0x74dcb303);
+        i ^= (i & w) >> 2;
+        i = i.wrapping_mul(0x9e501cc3);
+        i ^= (i & w) >> 2;
+        i = i.wrapping_mul(0xc860a3df);
+        i &= w;
+        i ^= i >> 5;
+
+        if i < n { break; }
+    }
+
+    return (i.wrapping_add(seed)) % n;
+}
+
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn inner_product_test() {
@@ -46,5 +90,18 @@ mod tests {
         let y = &[1.0, 2.0, 3.0];
         let p = inner_product(x, y);
         assert_eq!(p, 14.0);
+    }
+
+    #[test]
+    fn permutation_test() {
+        let seed: u32 = 255552;
+        let total: u32 = 259;
+        let mut ids = HashSet::new();
+        for i in 0..total {
+            ids.insert(permutation_element(i, total, seed));
+        }
+        for i in 0..total {
+            assert_eq!(true, ids.contains(&i));
+        }
     }
 }
