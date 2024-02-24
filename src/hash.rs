@@ -106,6 +106,22 @@ macro_rules! hash {
     };
 }
 
+/// Calculate 64-bit hash
+/// 
+/// <http://zimbry.blogspot.ch/2011/09/better-bit-mixing-improving-on.html>
+///
+/// * `v`: input value
+#[inline]
+pub fn hash64(v: u64) -> u64 {
+    let mut v = v;
+    v ^= v >> 31;
+    v = v.wrapping_mul(0x7fb5d329728ea185);
+    v ^= v >> 27;
+    v = v.wrapping_mul(0x81dadef4bc2dd44d);
+    v ^= v >> 33;
+    v
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -126,6 +142,9 @@ mod tests {
         }
         let elapsed = start.elapsed();
         println!("Elapsed: {} {:.2?}", seed, elapsed);
-        eprintln!("elapsed {:?}", elapsed)
+        eprintln!("elapsed {:?}", elapsed);
+
+        let v = 44u64;
+        println!("hash value is {}", hash64(v));
     }
 }

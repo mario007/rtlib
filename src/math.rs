@@ -74,7 +74,7 @@ pub fn permutation_element(index: u32, n: u32, seed: u32) -> u32 {
         if i < n { break; }
     }
 
-    return (i.wrapping_add(seed)) % n;
+    (i.wrapping_add(seed)) % n
 }
 
 
