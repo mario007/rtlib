@@ -1,4 +1,4 @@
-use crate::vec::Vec3;
+use crate::vec::{Vec3, Point3};
 
 /// Calculate intersection of ray with sphere
 /// 
@@ -7,7 +7,7 @@ use crate::vec::Vec3;
 /// * `position`: Position of sphere.
 /// * `radius`: Radius of sphere.
 /// * `tmax`: Maximum distance of ray origin from sphere.
-pub fn isect_ray_sphere(origin: Vec3, direction: Vec3, position: Vec3, radius: f32, tmax: f32) -> Option<f32>{
+pub fn isect_ray_sphere(origin: Point3, direction: Vec3, position: Point3, radius: f32, tmax: f32) -> Option<f32>{
     // This is implementation from ray tracing gems book that improves precision
     // direction is assumed to be normalized so a = 1
     let f = origin - position;
@@ -34,7 +34,7 @@ pub fn isect_ray_sphere(origin: Vec3, direction: Vec3, position: Vec3, radius: f
 }
 
 
-fn isect_ray_sphere2(origin: Vec3, direction: Vec3, position: Vec3, radius: f32, tmax: f32) -> Option<f32>{
+fn isect_ray_sphere2(origin: Point3, direction: Vec3, position: Point3, radius: f32, tmax: f32) -> Option<f32>{
     let ox = origin.x as f64;
     let oy = origin.y as f64;
     let oz = origin.z as f64;
@@ -84,9 +84,9 @@ mod tests {
 
     #[test]
     fn isect_sphere_test() {
-        let origin = Vec3::new(1.0, -2.0, -1.0);
+        let origin = Point3::new(1.0, -2.0, -1.0);
         let direction = Vec3::new(1.0, 2.0, 4.0).normalize();
-        let position = Vec3::new(3.0, 0.0, 5.0);
+        let position = Point3::new(3.0, 0.0, 5.0);
         let radius = 3.0;
         let tmax = 100.0;
         let t1 = isect_ray_sphere(origin , direction, position, radius, tmax);
@@ -97,9 +97,9 @@ mod tests {
 
     #[test]
     fn isect_sphere2_test() {
-        let origin = Vec3::new(0.0, 0.5, 0.0);
+        let origin = Point3::new(0.0, 0.5, 0.0);
         let direction = Vec3::new(0.0, 0.0, -1.0).normalize();
-        let position = Vec3::new(0.0, 0.0, 1.0);
+        let position = Point3::new(0.0, 0.0, 1.0);
         let radius = 20.0;
         let tmax = 1000.0;
         let t1 = isect_ray_sphere(origin , direction, position, radius, tmax);
@@ -110,9 +110,9 @@ mod tests {
 
     #[test]
     fn isect_sphere3_test() {
-        let origin = Vec3::new(0.0, 1.0, 0.0);
+        let origin = Point3::new(0.0, 1.0, 0.0);
         let direction = Vec3::new(0.0, 0.0, 1.0).normalize();
-        let position = Vec3::new(0.0, 0.0, 1.0);
+        let position = Point3::new(0.0, 0.0, 1.0);
         let radius = 1.0;
         let tmax = 1000.0;
         let t1 = isect_ray_sphere(origin , direction, position, radius, tmax);
