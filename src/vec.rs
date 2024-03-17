@@ -54,6 +54,15 @@ impl Vec3 {
              z: difference_of_products(self.x, rhs.y, self.y, rhs.x)}
     }
 
+    /// Calculate the angle between two normalized 3D vectors
+    pub fn angle_between(self, vec: Vec3) -> f32 {
+        if self * vec < 0.0 {
+            return std::f32::consts::PI - 2.0 * ((self + vec).length() * 0.5).clamp(-1.0, 1.0).asin()
+        } else {
+            return 2.0 * ((vec - self).length() * 0.5).clamp(-1.0, 1.0).asin()
+        }
+    }
+
 }
 
 

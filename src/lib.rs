@@ -10,3 +10,4 @@ pub mod hash;
 pub mod matrix;
 pub mod isect;
 pub mod rgb;
+pub mod frame;
