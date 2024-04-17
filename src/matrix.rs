@@ -1,4 +1,5 @@
 use std::ops::{Add, Mul};
+use crate::vec::{Normal, Point3, Vec3};
 
 use crate::math::{inner_product, difference_of_products};
 
@@ -167,6 +168,49 @@ impl Add for Matrix4x4 {
     }
 }
 
+impl Mul<Point3> for Matrix4x4 {
+    type Output = Point3;
+
+    fn mul(self, point: Point3) -> Point3 {
+        let m = self.m;
+        let xp = m[0][0] * point.x + m[0][1] * point.y + m[0][2] * point.z + m[0][3];
+        let yp = m[1][0] * point.x + m[1][1] * point.y + m[1][2] * point.z + m[1][3];
+        let zp = m[2][0] * point.x + m[2][1] * point.y + m[2][2] * point.z + m[2][3];
+        let wp = m[3][0] * point.x + m[3][1] * point.y + m[3][2] * point.z + m[3][3];
+        if wp == 1.0 {
+            Point3::new(xp, yp, zp)
+        } else {
+            Point3::new(xp, yp, zp) * wp.recip()
+        }
+    }
+}
+
+impl Mul<Vec3> for Matrix4x4 {
+    type Output = Vec3;
+
+    fn mul(self, vec: Vec3) -> Vec3 {
+        let m = self.m;
+        Vec3::new(
+            m[0][0] * vec.x + m[0][1] * vec.y + m[0][2] * vec.z,
+            m[1][0] * vec.x + m[1][1] * vec.y + m[1][2] * vec.z,
+            m[2][0] * vec.x + m[2][1] * vec.y + m[2][2] * vec.z
+        )
+    }
+
+}
+
+impl Mul<Normal> for Matrix4x4 {
+    type Output = Normal;
+
+    fn mul(self, normal: Normal) -> Normal {
+        let m = self.m;
+        Normal::new(
+            m[0][0] * normal.x + m[1][0] * normal.y + m[2][0] * normal.z,
+            m[0][1] * normal.x + m[1][1] * normal.y + m[2][1] * normal.z,
+            m[0][2] * normal.x + m[1][2] * normal.y + m[2][2] * normal.z
+        )
+    }
+}
 
 #[cfg(test)]
 mod tests {

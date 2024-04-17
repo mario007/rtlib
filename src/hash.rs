@@ -24,7 +24,6 @@ pub fn murmur_hash_64_a(key: &[u8], seed: u64) -> u64 {
         h ^= k;
         h = h.wrapping_mul(m);
     }
-    //let rest = iter_chunks.remainder();
     for i in (0..rest.len()).rev() {
         h ^= (rest[i] as u64) << (i * 8);
     }

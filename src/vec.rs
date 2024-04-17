@@ -223,6 +223,25 @@ impl Sub for Point3 {
     }
 }
 
+impl Mul<f32> for Point3 {
+    type Output = Self;
+
+    #[inline(always)]
+    fn mul(self, rhs: f32) -> Self {
+        Self{x: self.x * rhs, y: self.y * rhs, z: self.z * rhs}
+    }
+}
+
+impl Mul<Point3> for f32 {
+    type Output = Point3;
+
+    #[inline(always)]
+    fn mul(self, rhs: Point3) -> Self::Output {
+        Self::Output{x: self * rhs.x, y: self * rhs.y, z: self * rhs.z}
+    }
+}
+
+
 /// A 3-dimensional normal vector.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Normal {

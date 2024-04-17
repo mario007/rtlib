@@ -11,3 +11,4 @@ pub mod matrix;
 pub mod isect;
 pub mod rgb;
 pub mod frame;
+pub mod transformations;
