@@ -1,8 +1,8 @@
 
-use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, Neg};
+use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, Neg, Index};
 use std::convert::From;
-use crate::math::difference_of_products;
-
+use crate::math::{difference_of_products, sum_of_products};
+use std::f32;
 
 /// A 3-dimensional vector.
 ///
@@ -22,21 +22,16 @@ impl Vec3 {
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self {x, y, z}
     }
-    /// Calculate dot product of two 3D vectors
-    #[inline(always)]
-    pub fn dot(self, rhs: Self) -> f32 {
-        self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
-    }
-
+   
     /// Calculate length of 3D vector
     #[inline(always)]
     pub fn length(self) -> f32 {
-        self.dot(self).sqrt()
+        (self*self).sqrt()
     }
 
     #[inline(always)]
     pub fn length_sqr(self) -> f32 {
-        self.dot(self)
+        self*self
     }
 
     /// Normalize a 3D vector
@@ -57,14 +52,17 @@ impl Vec3 {
     /// Calculate the angle between two normalized 3D vectors
     pub fn angle_between(self, vec: Vec3) -> f32 {
         if self * vec < 0.0 {
-            return std::f32::consts::PI - 2.0 * ((self + vec).length() * 0.5).clamp(-1.0, 1.0).asin()
+            f32::consts::PI - 2.0 * safe_asin((self + vec).length() * 0.5)
         } else {
-            return 2.0 * ((vec - self).length() * 0.5).clamp(-1.0, 1.0).asin()
+            2.0 * safe_asin((vec - self).length() * 0.5)
         }
     }
 
 }
 
+fn safe_asin(x: f32) -> f32 {
+    x.clamp(-1.0, 1.0).asin()
+}
 
 impl Add for Vec3 {
     type Output = Self;
@@ -132,7 +130,11 @@ impl Mul for Vec3 {
 
     #[inline(always)]
     fn mul(self, rhs: Vec3) -> Self::Output {
-        self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
+        #[cfg(target_feature = "fma")]
+        {self.x.mul_add(rhs.x, sum_of_products(self.y, rhs.y, self.z, rhs.z))}
+
+        #[cfg(not(target_feature = "fma"))]
+        {self.x * rhs.x + self.y * rhs.y + self.z * rhs.z}
     }
 
 }
@@ -151,6 +153,20 @@ impl From<f32> for Vec3 {
     #[inline(always)]
     fn from(value: f32) -> Self {
         Self {x: value, y: value, z: value}
+    }
+}
+
+impl Index<usize> for Vec3 {
+    type Output = f32;
+
+    #[inline(always)]
+    fn index(&self, index: usize) -> &Self::Output {
+        match index {
+            0 => &self.x,
+            1 => &self.y,   
+            2 => &self.z,
+            _ => panic!("Invalid index for Vec3, expected 0, 1, or 2 and got {}", index),
+        }
     }
 }
 
@@ -568,6 +584,34 @@ mod tests {
         assert_eq!(result.x, 2.0);
         assert_eq!(result.y, 2.0);
         assert_eq!(result.z, 2.0);
+    }
+
+    #[test]
+    fn test_vec3_angle_between() {
+        let v1 = Vec3::new(1.0, 0.0, 0.0);
+        let v2 = Vec3::new(0.0, 1.0, 0.0);
+        let v3 = Vec3::new(-1.0, 0.0, 0.0);
+        let v4 = Vec3::new(1.0, 1.0, 0.0).normalize();
+
+        assert!((v1.angle_between(v2) - std::f32::consts::FRAC_PI_2).abs() < 1e-6);
+        assert_eq!(v1.angle_between(v3), std::f32::consts::PI);
+        assert!((v1.angle_between(v4) - std::f32::consts::FRAC_PI_4).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_vec3_index() {
+        let v = Vec3::new(1.0, 2.0, 3.0);
+        
+        assert_eq!(v[0], 1.0);
+        assert_eq!(v[1], 2.0);
+        assert_eq!(v[2], 3.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid index for Vec3, expected 0, 1, or 2 and got 3")]
+    fn test_vec3_index_out_of_bounds() {
+        let v = Vec3::new(1.0, 2.0, 3.0);
+        let _ = v[3]; // This should panic
     }
 
     #[test]

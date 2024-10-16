@@ -8,6 +8,15 @@ pub fn difference_of_products(a: f32, b: f32, c: f32, d: f32) -> f32 {
     dop + err
 }
 
+/// sum_of_products computes a * b + c * d in twice the working precission.
+#[inline(always)]
+pub fn sum_of_products(a: f32, b: f32, c: f32, d: f32) -> f32 {
+    let cd = c * d;
+    let sum_of_products = a.mul_add(b, cd);
+    let err = (c).mul_add(d, -cd);
+    sum_of_products + err
+}
+
 #[inline]
 fn two_sum(a: f32, b: f32) -> (f32, f32) {
     let x = a + b;
@@ -76,6 +85,7 @@ pub fn permutation_element(index: u32, n: u32, seed: u32) -> u32 {
 
     (i.wrapping_add(seed)) % n
 }
+
 
 
 #[cfg(test)]
