@@ -6,35 +6,31 @@
 /// * `key`: Byte array.
 /// * `seed`: Initial seed used in hash calculation.
 #[inline]
-pub fn murmur_hash_64_a(key: &[u8], seed: u64) -> u64 {
+pub fn murmur_hash64a(key: &[u8], seed: u64) -> u64 {
 
-    let m = 0xc6a4a7935bd1e995u64;
-    let r = 47i32;
+    let m : u64 = 0xc6a4a7935bd1e995;
+    let r : u8 = 47;
 
-    let mut h = seed ^ ((key.len() as u64).wrapping_mul(m));
-
-    let iter_chunks = key.chunks_exact(8);
-    let rest = iter_chunks.remainder();
-    for chunk in iter_chunks {
-        let mut k = u64::from_le_bytes(chunk.try_into().unwrap());
+    let mut h : u64 = seed ^ ((key.len() as u64).wrapping_mul(m));
+    let chunks = key.chunks_exact(8);
+    let rest = chunks.remainder();
+    for chunk in chunks {
+        let mut k: u64 = u64::from_le_bytes(chunk.try_into().unwrap());
         k = k.wrapping_mul(m);
         k ^= k >> r;
         k = k.wrapping_mul(m);
-
         h ^= k;
         h = h.wrapping_mul(m);
     }
-    for i in (0..rest.len()).rev() {
-        h ^= (rest[i] as u64) << (i * 8);
-    }
     if !rest.is_empty() {
+        let mut k: [u8; 8] = [0; 8];
+        k[0..rest.len()].clone_from_slice(rest);
+        h ^= u64::from_le_bytes(k.try_into().unwrap());
         h = h.wrapping_mul(m);
     }
-
     h ^= h >> r;
     h = h.wrapping_mul(m);
     h ^= h >> r;
-
     h
 }
 
@@ -46,11 +42,13 @@ pub fn murmur_hash_64_a(key: &[u8], seed: u64) -> u64 {
 macro_rules! hash {
     ($e:expr) => {
         {
-            murmur_hash_64_a(&($e).to_le_bytes(), 0)
+            use crate::hash::murmur_hash64a;
+            murmur_hash64a(&($e).to_le_bytes(), 0)
         }
     };
     ($e1:expr, $e2:expr) => {
         {
+            use crate::hash::murmur_hash64a;
             let a1 = ($e1).to_le_bytes();
             let a2 = ($e2).to_le_bytes();
             let length = a1.len() + a2.len();
@@ -60,11 +58,12 @@ macro_rules! hash {
             let mut buffer = [0u8; 64];
             buffer[0..a1.len()].clone_from_slice(&a1);
             buffer[a1.len()..a1.len() + a2.len()].clone_from_slice(&a2);
-            murmur_hash_64_a(&buffer[0..length], 0)
+            murmur_hash64a(&buffer[0..length], 0)
         }
     };
     ($e1:expr, $e2:expr, $e3: expr) => {
         {
+            use crate::hash::murmur_hash64a;
             let a1 = ($e1).to_le_bytes();
             let a2 = ($e2).to_le_bytes();
             let a3 = ($e3).to_le_bytes();
@@ -77,11 +76,12 @@ macro_rules! hash {
             buffer[0..a1.len()].clone_from_slice(&a1);
             buffer[a1.len()..a1_a2_len].clone_from_slice(&a2);
             buffer[a1_a2_len..length].clone_from_slice(&a3);
-            murmur_hash_64_a(&buffer[0..length], 0)
+            murmur_hash64a(&buffer[0..length], 0)
         }
     };
     ($e1:expr, $e2:expr, $e3: expr, $e4: expr) => {
         {
+            use crate::hash::murmur_hash64a;
             let a1 = ($e1).to_le_bytes();
             let a2 = ($e2).to_le_bytes();
             let a3 = ($e3).to_le_bytes();
@@ -97,7 +97,7 @@ macro_rules! hash {
             buffer[a1.len()..a1_a2_len].clone_from_slice(&a2);
             buffer[a1_a2_len..a1_a2_a3_len].clone_from_slice(&a3);
             buffer[a1_a2_a3_len..length].clone_from_slice(&a4);
-            murmur_hash_64_a(&buffer[0..length], 0)
+            murmur_hash64a(&buffer[0..length], 0)
 
             // murmur_hash_64_a(&[($e1).to_le_bytes(), ($e2).to_le_bytes(),
             // ($e3).to_le_bytes(), ($e4).to_le_bytes()].concat(), 0)
@@ -129,7 +129,7 @@ mod tests {
     use std::time::Instant;
 
     #[test]
-    fn murmur_hash_64_a_test() {
+    fn murmur_hash_64_a_test_macro() {
         println!("h1 {}", hash!(566u32));
         println!("h2 {}", hash!(0u32, 1f64));
         println!("h3 {}", hash!(0u32, 1f64, 32i32));
@@ -145,5 +145,13 @@ mod tests {
 
         let v = 44u64;
         println!("hash value is {}", hash64(v));
+    }
+
+    #[test]
+    fn murmur_hash_64_a_test() {
+        assert_eq!(0, murmur_hash64a("".as_bytes(), 0));
+        assert_eq!(0xc26e8bc196329b0f, murmur_hash64a("".as_bytes(), 10));
+        assert_eq!(0x472ff7d324321dfe,
+                   murmur_hash64a("Pizza & Mandolino".as_bytes(), 2915580697));
     }
 }
