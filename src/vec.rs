@@ -257,6 +257,13 @@ impl Mul<Point3> for f32 {
     }
 }
 
+impl From<Point3> for Vec3 {
+    #[inline(always)]
+    fn from(value: Point3) -> Self {
+        Vec3{x: value.x, y: value.y, z: value.z}
+    }
+}
+
 
 /// A 3-dimensional normal vector.
 #[derive(Debug, Clone, Copy, PartialEq)]

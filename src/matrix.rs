@@ -202,6 +202,10 @@ impl Mul<Vec3> for Matrix4x4 {
 impl Mul<Normal> for Matrix4x4 {
     type Output = Normal;
 
+    // NOTE:
+    // This is expected to be inverse of the matrix
+    // transpose of this matrix will be used for transformation of normals so you don't need
+    // to manually transpose the matrix
     fn mul(self, normal: Normal) -> Normal {
         let m = self.m;
         Normal::new(

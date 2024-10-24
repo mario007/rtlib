@@ -12,3 +12,5 @@ pub mod isect;
 pub mod rgb;
 pub mod frame;
 pub mod transformations;
+pub mod camera;
+pub mod ray;

@@ -81,7 +81,7 @@ impl Transformation {
         Self { mat, inv_mat }
     }
 
-    pub fn look_at(pos: Vec3, look: Vec3, up: Vec3) -> Self {
+    pub fn look_at(pos: Point3, look: Point3, up: Vec3) -> Self {
         let dir = (look - pos).normalize();
         if up.normalize().cross(dir).length() == 0.0 {
             panic!("up vector ({}, {}, {}) and viewing direction ({}, {}, {}) are parallel.",
@@ -103,7 +103,8 @@ impl Transformation {
     }
 
     pub fn orthographic(z_near: f32, z_far: f32) -> Self {
-        Transformation::scale(1.0, 1.0, 1.0 / (z_far - z_near)) * Transformation::translate(&Vec3::new(0.0, 0.0, -z_near))
+        Transformation::scale(1.0, 1.0, 1.0 / (z_far - z_near)) * 
+        Transformation::translate(&Vec3::new(0.0, 0.0, -z_near))
     }
     
     pub fn perspective(fov: f32, z_near: f32, z_far: f32) -> Self {
@@ -113,8 +114,12 @@ impl Transformation {
             [0.0, 0.0, z_far / (z_far - z_near), -z_near * z_far / (z_far - z_near)],
             [0.0, 0.0, 1.0, 0.0],
         ]);
-        let inv_tan_angle = 1.0 / (0.5 * fov).tan();
+        let inv_tan_angle = (0.5 * fov.to_radians()).tan().recip();
         Transformation::scale(inv_tan_angle, inv_tan_angle, 1.0) * Transformation::from(mat)
+    }
+
+    pub fn inverse(&self) -> Self {
+        Self { mat: self.inv_mat, inv_mat: self.mat }
     }
 
 }
@@ -146,6 +151,15 @@ impl Mul<Point3> for Transformation {
         self.mat * point
     }
 }
+
+impl Mul<Transformation> for Point3 {
+    type Output = Point3;
+
+    fn mul(self, transformation: Transformation) -> Point3 {
+        transformation * self
+    }
+}
+
 
 impl Mul<Vec3> for Transformation {
     type Output = Vec3;
@@ -190,8 +204,8 @@ mod tests {
 
     #[test]
     fn test_look_at() {
-        let pos = Vec3::new(0.0, 0.0, 0.0);
-        let look = Vec3::new(1.0, 0.0, 0.0);
+        let pos = Point3::new(0.0, 0.0, 0.0);
+        let look = Point3::new(1.0, 0.0, 0.0);
         let up = Vec3::new(0.0, 1.0, 0.0);
         let transformation = Transformation::look_at(pos, look, up);
         // Add assertions here to test the correctness of the look_at transformation
