@@ -14,3 +14,11 @@ pub mod frame;
 pub mod transformations;
 pub mod camera;
 pub mod ray;
+pub mod tile;
+pub mod color;
+
+pub use crate::color::{RGBPixelSample, AccumlationBuffer};
+pub use crate::rgb::ImageSize;
+pub use crate::camera::{PerspectiveCameraDescriptor, PerspectiveCamera};
+pub use crate::ray::Ray;
+pub use crate::tile::Tile;

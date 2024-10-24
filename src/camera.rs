@@ -1,7 +1,7 @@
 use crate::vec::{Vec3, Point3};
 use crate::transformations::Transformation;
 use crate::ray::Ray;
-
+use crate::rgb::ImageSize;
 
 pub fn create_raster_to_ndc_transformation(resolution_x: usize, resolution_y: usize) -> Transformation {
     let ndc_to_raster = Transformation::scale(resolution_x as f32, -(resolution_y as f32), 1.0);
@@ -43,8 +43,8 @@ pub struct PerspectiveCamera {
 }
 
 impl PerspectiveCamera {
-    fn new(resolution_x: usize, resolution_y: usize, fov: f32, near_plane: f32, far_plane: f32, camera_to_world: Transformation) -> PerspectiveCamera {
-        let raster_to_camera = create_raster_to_perspective_transformation(resolution_x, resolution_y, fov, near_plane, far_plane);
+    fn new(size: ImageSize, fov: f32, near_plane: f32, far_plane: f32, camera_to_world: Transformation) -> PerspectiveCamera {
+        let raster_to_camera = create_raster_to_perspective_transformation(size.width, size.height, fov, near_plane, far_plane);
         PerspectiveCamera { raster_to_camera, camera_to_world }
     }
 
@@ -61,8 +61,7 @@ impl PerspectiveCamera {
 }
 
 pub struct PerspectiveCameraDescriptor {
-    pub resolution_x: usize,
-    pub resolution_y: usize,
+    pub image_size: ImageSize,
     pub fov: f32,
     pub position: Point3,
     pub look_at: Point3,
@@ -78,15 +77,14 @@ impl PerspectiveCameraDescriptor {
         let far_plane = self.far_plane.unwrap_or(1000.0);
         let up = self.up.unwrap_or(Vec3::new(0.0, 1.0, 0.0));
         let camera_to_world = self.camera_to_world.unwrap_or(Transformation::look_at(self.position, self.look_at, up));
-        PerspectiveCamera::new(self.resolution_x, self.resolution_y, self.fov, near_plane, far_plane, camera_to_world)
+        PerspectiveCamera::new(self.image_size, self.fov, near_plane, far_plane, camera_to_world)
     }
 }
 
 impl Default for PerspectiveCameraDescriptor {
     fn default() -> Self {
         Self { 
-            resolution_x: 256,
-            resolution_y: 256,
+            image_size: ImageSize::new(256, 256),
             fov: 45.0,
             position: Point3::new(0.0, 0.0, 0.0),
             look_at: Point3::new(0.0, 0.0, -1.0),
