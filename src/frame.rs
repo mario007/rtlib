@@ -1,6 +1,6 @@
 use std::convert::From;
 
-use crate::vec::Vec3;
+use crate::vec::{Vec3, Normal};
 
 
 pub struct Frame {
@@ -30,6 +30,12 @@ impl From<Vec3> for Frame {
             v: b2,
             w: normal
         }
+    }
+}
+
+impl From<Normal> for Frame {
+    fn from(normal: Normal) -> Self {
+        Frame::from(Vec3::from(normal))
     }
 }
 

@@ -7,7 +7,7 @@ use crate::ray::Ray;
 /// * `position`: Position of sphere.
 /// * `radius`: Radius of sphere.
 /// * `tmax`: Maximum distance of ray origin from sphere.
-pub fn isect_ray_sphere(ray: &Ray, position: Point3, radius: f32, tmax: f32) -> Option<f32>{
+pub fn isect_ray_sphere(ray: &Ray, position: Point3, radius: f32, tmin: f32, tmax: f32) -> Option<f32>{
     // This is implementation from ray tracing gems book that improves precision
     // direction is assumed to be normalized so a = 1
     let f = ray.origin - position;
@@ -22,11 +22,11 @@ pub fn isect_ray_sphere(ray: &Ray, position: Point3, radius: f32, tmax: f32) -> 
     } else {
         let q = b_prime + b_prime.signum() * discriminant.sqrt();
         let t = c / q;
-        if t > 0.0 && t < tmax {
+        if t > tmin && t < tmax {
             return Some(t);
         }
         let t = q;
-        if t > 0.0 && t < tmax {
+        if t > tmin && t < tmax {
             return Some(t);
         }
         None
@@ -90,7 +90,8 @@ mod tests {
         let position = Point3::new(3.0, 0.0, 5.0);
         let radius = 3.0;
         let tmax = 100.0;
-        let t1 = isect_ray_sphere(&ray, position, radius, tmax);
+        let tmin = 0.0;
+        let t1 = isect_ray_sphere(&ray, position, radius, tmin, tmax);
         let t2 = isect_ray_sphere2(origin , direction, position, radius, tmax);
         println!("{:?}", t1);
         println!("{:?}", t2);
@@ -104,7 +105,8 @@ mod tests {
         let position = Point3::new(0.0, 0.0, 1.0);
         let radius = 20.0;
         let tmax = 1000.0;
-        let t1 = isect_ray_sphere(&ray, position, radius, tmax);
+        let tmin = 0.0;
+        let t1 = isect_ray_sphere(&ray, position, radius, tmin, tmax);
         let t2 = isect_ray_sphere2(origin , direction, position, radius, tmax);
         println!("{:?}", t1);
         println!("{:?}", t2);
@@ -118,7 +120,8 @@ mod tests {
         let position = Point3::new(0.0, 0.0, 1.0);
         let radius = 1.0;
         let tmax = 1000.0;
-        let t1 = isect_ray_sphere(&ray, position, radius, tmax);
+        let tmin = 0.0;
+        let t1 = isect_ray_sphere(&ray, position, radius, tmin, tmax);
         let t2 = isect_ray_sphere2(origin , direction, position, radius, tmax);
         println!("{:?}", t1);
         println!("{:?}", t2);

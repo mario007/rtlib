@@ -264,6 +264,21 @@ impl From<Point3> for Vec3 {
     }
 }
 
+impl From<Vec3> for Point3 {
+    #[inline(always)]
+    fn from(value: Vec3) -> Self {
+        Self{x: value.x, y: value.y, z: value.z}
+    }
+}
+
+impl Add<Vec3> for Point3 {
+    type Output = Self;
+
+    #[inline(always)]
+    fn add(self, rhs: Vec3) -> Self {
+        Self{x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z}
+    }
+}
 
 /// A 3-dimensional normal vector.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -414,6 +429,42 @@ impl From<f32> for Normal {
             y: value,
             z: value,
         }
+    }
+}
+
+impl From<Vec3> for Normal {
+    #[inline(always)]
+    fn from(value: Vec3) -> Self {
+        Self{x: value.x, y: value.y, z: value.z}
+    }
+}
+
+impl Mul<Vec3> for Normal {
+    type Output = f32;
+
+    #[inline(always)]
+    fn mul(self, rhs: Vec3) -> Self::Output {
+        #[cfg(target_feature = "fma")]
+        {self.x.mul_add(rhs.x, sum_of_products(self.y, rhs.y, self.z, rhs.z))}
+
+        #[cfg(not(target_feature = "fma"))]
+        {self.x * rhs.x + self.y * rhs.y + self.z * rhs.z}
+    }
+}
+
+impl Mul<Normal> for Vec3 {
+    type Output = f32;
+
+    #[inline(always)]
+    fn mul(self, rhs: Normal) -> Self::Output {
+        rhs * self
+    }
+}
+
+impl From<Normal> for Vec3 {
+    #[inline(always)]
+    fn from(value: Normal) -> Self {
+        Vec3{x: value.x, y: value.y, z: value.z}
     }
 }
 
