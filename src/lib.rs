@@ -17,7 +17,7 @@ pub mod ray;
 pub mod tile;
 pub mod color;
 pub mod shapes;
-pub mod sample;
+pub mod samplings;
 
 pub use crate::color::{RGBPixelSample, AccumlationBuffer};
 pub use crate::rgb::ImageSize;

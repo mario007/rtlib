@@ -49,14 +49,10 @@ impl PerspectiveCamera {
     }
 
     pub fn generate_ray(&self, x: f32, y: f32) -> Ray {
-
         let local_origin = Point3::new(0.0, 0.0, 0.0);
         let point_on_camera = Point3::new(x, y, 0.0) * self.raster_to_camera;
         let local_direction = Vec3::from(point_on_camera);
-
-        let world_orgin = self.camera_to_world * local_origin;
-        let world_direction = self.camera_to_world * local_direction;
-        Ray::new(world_orgin, world_direction.normalize())
+        Ray::new(local_origin, local_direction) * self.camera_to_world
     }
 }
 

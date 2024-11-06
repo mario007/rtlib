@@ -176,3 +176,9 @@ impl Mul<Normal> for Transformation {
         self.inv_mat * normal
     }
 }
+
+impl Default for Transformation {
+    fn default() -> Self {
+        Transformation{mat: Matrix4x4::identity(), inv_mat: Matrix4x4::identity()}
+    }
+}

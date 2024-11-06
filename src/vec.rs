@@ -201,6 +201,16 @@ impl Point3 {
     pub fn distance_sqr(self, other: Self) -> f32 {
         (self - other).length_sqr()
     }
+
+    #[inline(always)]
+    pub fn min(self, other: Self) -> Self {
+        Self{x: self.x.min(other.x), y: self.y.min(other.y), z: self.z.min(other.z)}
+    }
+
+    #[inline(always)]
+    pub fn max(self, other: Self) -> Self {
+        Self{x: self.x.max(other.x), y: self.y.max(other.y), z: self.z.max(other.z)}
+    }
 }
 
 impl Add for Point3 {

@@ -23,7 +23,7 @@ impl Mul<Transformation> for Ray {
     type Output = Self;
 
     fn mul(self, rhs: Transformation) -> Self::Output {
-        Self::new(rhs * self.origin, rhs * self.direction)
+        Self::new(rhs * self.origin, (rhs * self.direction).normalize())
     }
 }
 
@@ -110,5 +110,6 @@ mod test {
 
         let hit = Point3::new(112.0, 366.0, 885.0);
         println!("Offset point {:?}", offset_ray_origin(hit, normal));
+        println!("Size of f32: {}", std::mem::size_of::<Option<Transformation>>());
     }
 }
