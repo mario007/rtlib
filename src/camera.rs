@@ -57,7 +57,7 @@ impl PerspectiveCamera {
 }
 
 pub struct PerspectiveCameraDescriptor {
-    pub image_size: ImageSize,
+    pub resolution: ImageSize,
     pub fov: f32,
     pub position: Point3,
     pub look_at: Point3,
@@ -73,14 +73,14 @@ impl PerspectiveCameraDescriptor {
         let far_plane = self.far_plane.unwrap_or(1000.0);
         let up = self.up.unwrap_or(Vec3::new(0.0, 1.0, 0.0));
         let camera_to_world = self.camera_to_world.unwrap_or(Transformation::look_at(self.position, self.look_at, up));
-        PerspectiveCamera::new(self.image_size, self.fov, near_plane, far_plane, camera_to_world)
+        PerspectiveCamera::new(self.resolution, self.fov, near_plane, far_plane, camera_to_world)
     }
 }
 
 impl Default for PerspectiveCameraDescriptor {
     fn default() -> Self {
         Self { 
-            image_size: ImageSize::new(256, 256),
+            resolution: ImageSize::new(256, 256),
             fov: 45.0,
             position: Point3::new(0.0, 0.0, 0.0),
             look_at: Point3::new(0.0, 0.0, -1.0),

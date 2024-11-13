@@ -2,6 +2,7 @@ use crate::vec::{Point3, Normal, Vec3};
 use crate::transformations::Transformation;
 use crate::ray::Ray;
 use std::ops::Mul;
+use std::collections::HashMap;
 
 pub trait Intersect {
     fn intersect(&self, ray: &Ray, tmin: f32) -> Option<f32>;
@@ -69,7 +70,8 @@ impl LinearIntersector {
     pub fn intersect(&self, ray: &Ray,
     isect_fn: &dyn Fn(usize, &Ray) -> Option<f32>) -> Option<ShapeIntersection> {
         let mut primitive_id = 0;
-        let mut current_t = f32::INFINITY;
+        const BIG_NUMBER: f32 = 1e38;
+        let mut current_t = BIG_NUMBER;
         let rd = ray.direction;
         let inv_rd = Vec3::new(1.0 / rd.x, 1.0 / rd.y, 1.0 / rd.z);
     
@@ -85,7 +87,7 @@ impl LinearIntersector {
                 }
             }
         }
-        if current_t < f32::INFINITY {
+        if current_t < BIG_NUMBER {
             Some(ShapeIntersection { t: current_t, shape_id: primitive_id})
         } else {
             None
@@ -107,7 +109,7 @@ impl Sphere {
 
 impl Intersect for Sphere {
     fn intersect(&self, ray: &Ray, tmin: f32) -> Option<f32> {
-        crate::isect::isect_ray_sphere(ray, self.center, self.radius, tmin, f32::INFINITY)
+        crate::isect::isect_ray_sphere(ray, self.center, self.radius, tmin, 1e38)
     }
 }
 
@@ -393,18 +395,23 @@ impl Geometry {
     pub fn intersect(&self, ray: &Ray) -> Option<SurfaceInteraction> {
         let sphere_isect = self.spheres.intersect(ray);
         let triangle_isect = self.triangles.intersect(ray);
+        let sphere_isect = sphere_isect.unwrap_or(ShapeIntersection { t: -1.0, shape_id: 0 });
+        let triangle_isect = triangle_isect.unwrap_or(ShapeIntersection { t: -1.0, shape_id: 0 });
 
-        match (sphere_isect, triangle_isect) {
-            (None, None) => None,
-            (Some(s), None) => self.surface_interaction(ray, &GeometryIntersection::Sphere(s)),
-            (None, Some(t)) => self.surface_interaction(ray, &GeometryIntersection::Triangle(t)),
-            (Some(s), Some(t)) => {
-                if s.t < t.t {
-                    self.surface_interaction(ray, &GeometryIntersection::Sphere(s))
-                } else {
-                    self.surface_interaction(ray, &GeometryIntersection::Triangle(t))
-                }
-            }
+        let mut current_t = 1e38;
+        let mut type_id = -1;
+        if sphere_isect.t > 0.0 && sphere_isect.t < current_t {
+            current_t = sphere_isect.t;
+            type_id = 0;
+        }
+        if triangle_isect.t > 0.0 && triangle_isect.t < current_t {
+            type_id = 1;
+        }
+
+        match type_id {
+            0 => self.surface_interaction(ray, &GeometryIntersection::Sphere(sphere_isect)),
+            1 => self.surface_interaction(ray, &GeometryIntersection::Triangle(triangle_isect)),
+            _ => None
         }
     }
 
@@ -418,12 +425,34 @@ impl Geometry {
             }
             GeometryIntersection::Triangle(shape_intersection) => {
                 let hit_point = ray.point_at(shape_intersection.t);
-                let normal = self.triangles.normal(&ray, &shape_intersection);
+                let mut normal = self.triangles.normal(&ray, &shape_intersection);
+                if (-ray.direction) * normal < 0.0 {
+                    normal = -normal;
+                }
                 let material_id = self.triangles.material(&shape_intersection);
                 Some(SurfaceInteraction { t: shape_intersection.t, hit_point, normal, material_id })
             }
             GeometryIntersection::None => None
         }
+    }
+
+    pub fn from_shape_descriptions(descs: &Vec<ShapeDescription>, mat_names: &HashMap<String, usize>) -> Self {
+        let mut geometry = Self::new();
+        for desc in descs.iter() {
+            let material_id = mat_names[&desc.material] as u32;
+            match desc.typ {
+                ShapeType::Sphere => {
+                    let sphere = Sphere::new(desc.position, desc.radius);
+                    geometry.add_sphere(sphere, None, material_id);
+                }
+                ShapeType::Mesh => {
+                    panic!("Meshes are not supported yet");
+                    // geometry.add_mesh(Mesh::from((desc.vertices, desc.indices)), None, material_id);
+                }
+            }
+        }
+        geometry.prepare_for_rendering();
+        geometry
     }
 }
 
@@ -457,5 +486,28 @@ mod tests {
         assert_eq!(primitives.shapes[0].shape.radius, 1.0);
         assert_eq!(primitives.shapes[1].shape.center, Point3::new(1.0, 1.0, 1.0));
         assert_eq!(primitives.shapes[1].shape.radius, 2.0);
+    }
+}
+
+pub enum ShapeType {
+    Sphere,
+    Mesh
+}
+
+pub struct ShapeDescription {
+    pub typ: ShapeType,
+    pub material: String,
+    pub position: Point3,
+    pub radius: f32
+}
+
+impl Default for ShapeDescription {
+    fn default() -> Self {
+        Self {
+            typ: ShapeType::Sphere,
+            material: String::new(),
+            position: Point3::new(0.0, 0.0, 0.0),
+            radius: 0.0
+        }
     }
 }

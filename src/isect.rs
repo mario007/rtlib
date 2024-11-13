@@ -93,7 +93,7 @@ pub fn isect_ray_bbox(ray_origin: Point3, ray_inv_dir: Vec3, bbox_min: Point3, b
     }
 
     let mut tmin = 0.0;
-    let mut tmax = f32::INFINITY;
+    let mut tmax = 1e38;
 
     let t1 = (bbox_min.x - ray_origin.x) * ray_inv_dir.x;
     let t2 = (bbox_max.x - ray_origin.x) * ray_inv_dir.x;

@@ -28,15 +28,15 @@ pub struct RGB8 {
     pub blue: u8
 }
 
-pub struct RGBuffer {
+pub struct RGB8uffer {
     size: ImageSize,
     pixels: Vec<RGB8>
 }
 
-impl RGBuffer {
-    pub fn new(size: ImageSize) -> RGBuffer {
+impl RGB8uffer {
+    pub fn new(size: ImageSize) -> RGB8uffer {
         let pixels = vec![RGB8{red:0, green:0, blue:0}; size.width * size.height];
-        RGBuffer {size, pixels}
+        RGB8uffer {size, pixels}
     }
 
     pub fn get(&self, x: usize, y: usize) -> Option<&RGB8> {
@@ -70,12 +70,12 @@ impl RGBuffer {
     }
 }
 
-impl From<(usize, Vec<RGB8>)> for RGBuffer {
+impl From<(usize, Vec<RGB8>)> for RGB8uffer {
     fn from(data: (usize, Vec<RGB8>)) -> Self {
         let (width, pixels) = data;
         assert!(pixels.len() % width == 0);
         let height = pixels.len() / width;
-        RGBuffer {size: ImageSize::new(width, height), pixels}
+        RGB8uffer {size: ImageSize::new(width, height), pixels}
     }
 }
 
@@ -95,7 +95,7 @@ mod tests {
         let height = 3;
         let res_x = width * pixel_size;
         let res_y = height * pixel_size;
-        let mut col_buffer = RGBuffer::new(ImageSize::new(res_x, res_y));
+        let mut col_buffer = RGB8uffer::new(ImageSize::new(res_x, res_y));
         for j in 1..height {
             for i in 0..res_x {
                 col_buffer.set(i, j * pixel_size, &color);

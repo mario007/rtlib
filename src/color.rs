@@ -2,7 +2,7 @@
 use std::ops::{Add, AddAssign, Mul};
 
 use crate::tile::Tile;
-use crate::rgb::{RGBuffer, RGB8};
+use crate::rgb::{RGB8uffer, RGB8};
 
 #[derive(Debug, Copy, Clone)]
 pub struct RGB {
@@ -36,6 +36,15 @@ impl Mul<RGB> for f32 {
     #[inline(always)]
     fn mul(self, rhs: RGB) -> RGB {
         rhs * self
+    }
+}
+
+impl Mul<RGB> for RGB {
+    type Output = Self;
+
+    #[inline(always)]
+    fn mul(self, rhs: RGB) -> Self {
+        Self{r: self.r * rhs.r, g: self.g * rhs.g, b: self.b * rhs.b}
     }
 }
 
@@ -106,7 +115,6 @@ pub enum TMOType {
     Linear,
     Gamma,
     Reinhard,
-
 }
 
 // http://filmicworlds.com/blog/filmic-tonemapping-operators/
@@ -160,10 +168,10 @@ impl<T: Default + Clone + Copy + AddAssign + Into<RGB>> AccumlationBuffer<T> {
         self.buffer.get(index)
     }
 
-    pub fn to_rgb8_buffer(&self, tmo_type: &TMOType) -> RGBuffer {
+    pub fn to_rgb8_buffer(&self, tmo_type: &TMOType) -> RGB8uffer {
         let vals: Vec<RGB8> = self.buffer.iter().map(
             |sample| tone_map(tmo_type,&(*sample).into()).into()).collect();
-        RGBuffer::from((self.width, vals))
+        RGB8uffer::from((self.width, vals))
     }
 }
 

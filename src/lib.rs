@@ -18,9 +18,13 @@ pub mod tile;
 pub mod color;
 pub mod shapes;
 pub mod samplings;
-
+pub mod lights;
+pub mod materials;
+pub mod json_scene_file;
+pub mod scene;
 pub use crate::color::{RGBPixelSample, AccumlationBuffer};
 pub use crate::rgb::ImageSize;
 pub use crate::camera::{PerspectiveCameraDescriptor, PerspectiveCamera};
 pub use crate::ray::Ray;
 pub use crate::tile::Tile;
+pub use crate::json_scene_file::load_scene_description_from_json;
