@@ -81,7 +81,7 @@ impl Default for PerspectiveCameraDescriptor {
     fn default() -> Self {
         Self { 
             resolution: ImageSize::new(256, 256),
-            fov: 45.0,
+            fov: 90.0,
             position: Point3::new(0.0, 0.0, 0.0),
             look_at: Point3::new(0.0, 0.0, -1.0),
             up: None,

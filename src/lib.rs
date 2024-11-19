@@ -22,9 +22,13 @@ pub mod lights;
 pub mod materials;
 pub mod json_scene_file;
 pub mod scene;
+pub mod pbrt_v4_tokenizer;
+pub mod pbrt_v4_scene_file;
+
 pub use crate::color::{RGBPixelSample, AccumlationBuffer};
 pub use crate::rgb::ImageSize;
 pub use crate::camera::{PerspectiveCameraDescriptor, PerspectiveCamera};
 pub use crate::ray::Ray;
 pub use crate::tile::Tile;
 pub use crate::json_scene_file::load_scene_description_from_json;
+pub use crate::pbrt_v4_scene_file::parse_pbrt_v4_input_file;
