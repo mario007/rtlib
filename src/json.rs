@@ -167,11 +167,10 @@ fn parse_material(section: &Value, name: &str) -> Result<MaterialDescription, Bo
 
 
 fn parse_matte_material(section: &Value, name: &str) -> Result<MaterialDescription, Box<dyn Error>> {
-    let diffuse = parse_rgb_color(&section["diffuse"], &format!("material:{}:diffuse", name))?;
     let mut desc = MaterialDescription::default();
+    desc.diffuse = parse_rgb_color(&section["diffuse"], &format!("material:{}:diffuse", name))?;
     desc.name = name.to_string();
     desc.typ = MaterialType::Matte;
-    desc.diffuse = diffuse;
     Ok(desc)
 }
 
@@ -198,12 +197,10 @@ fn parse_light(section: &Value) -> Result<LightDescription, Box<dyn Error>> {
 }
 
 fn parse_point_light(section: &Value) -> Result<LightDescription, Box<dyn Error>> {
-    let intensity = parse_rgb_color(&section["intensity"], "light->intensity")?;
-    let position = parse_point3(&section["position"], "light->position")?;
     let mut desc = LightDescription::default();
+    desc.intensity = parse_rgb_color(&section["intensity"], "light->intensity")?;
+    desc.position = parse_point3(&section["position"], "light->position")?;
     desc.typ = LightType::Point;
-    desc.intensity = intensity;
-    desc.position = position;
     Ok(desc)
 }
 
@@ -267,7 +264,7 @@ fn parse_transformation(section: &Value) -> Result<Transformation, Box<dyn Error
     match typ.as_str() {
         "translate" => parse_translate(section),
         "scale" => parse_scale(section),
-        _ => return Err(format!("Unknown transformation type {}", typ).into())
+        _ => Err(format!("Unknown transformation type {}", typ).into())
     }
 }
 

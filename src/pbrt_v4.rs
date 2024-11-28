@@ -97,7 +97,7 @@ impl ParseState {
     }
 
     pub fn set_material(&mut self, material: String) {
-        if self.materials.len() == 0 {
+        if self.materials.is_empty() {
             self.materials.push(material);
         } else {
             let index = self.materials.len() - 1;
@@ -192,6 +192,7 @@ fn parse_input_string(text: &str, scene: &mut SceneDescription, state: &mut Pars
     }
 }
 
+#[allow(clippy::manual_map)]
 fn next_directive(tokenizer: &mut PBRTTokenizer) -> Option<String> {
     match tokenizer.next() {
         Some(token) => Some(token.to_string()),
@@ -253,12 +254,12 @@ fn process_camera(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
 
     let camera_type = match tokenizer.next() {
         Some(token) => token.trim(),
-        None => return Err(format!("Missing camera type token!").into())
+        None => return Err("Missing camera type token!".to_string().into())
     };
 
     match camera_type {
         "perspective" => process_perspective_camera(tokenizer, scene, state),
-        _ => return Err(format!("Camera: Unsupported camera type - {}", camera_type).into())
+        _ => Err(format!("Camera: Unsupported camera type - {}", camera_type).into())
     }
 }
 
@@ -295,7 +296,7 @@ fn process_integrator(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescriptio
     match token {
         "direct_lighting" => process_integrator_direct_lighting(tokenizer, scene, state),
         "ambientocclusion" => process_integrator_ambientocclusion(tokenizer, scene, state),
-        _=> return Err(format!("Unsupported integrator type {}", token).into())
+        _=> Err(format!("Unsupported integrator type {}", token).into())
     }
 }
 
@@ -346,12 +347,12 @@ fn process_film(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
 
     let film_type = match tokenizer.next() {
         Some(token) => token.trim(),
-        None => return Err(format!("Missing film type token!").into())
+        None => return Err("Missing film type token!".to_string().into())
     };
 
     match film_type {
         "rgb" => process_rgb_film(tokenizer, scene, state),
-        _ => return Err(format!("Camera: Unsupported film type - {}", film_type).into())
+        _ => Err(format!("Camera: Unsupported film type - {}", film_type).into())
     }
 }
 
@@ -383,7 +384,7 @@ fn process_sampler(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
 
     let sampler_type = match tokenizer.next() {
         Some(token) => token.trim(),
-        None => return Err(format!("Missing sampler type token!").into())
+        None => return Err("Missing sampler type token!".to_string().into())
     };
 
     match sampler_type {
@@ -393,7 +394,7 @@ fn process_sampler(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
         "sobol" => process_independent_sampler(tokenizer, scene, state),
         "stratified" => process_independent_sampler(tokenizer, scene, state),
         "zsobol" => process_independent_sampler(tokenizer, scene, state),
-        _ => return Err(format!("Sampler: Unsupported sampler type - {}", sampler_type).into())
+        _ => Err(format!("Sampler: Unsupported sampler type - {}", sampler_type).into())
     }
 }
 
@@ -446,30 +447,28 @@ fn process_material(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
     };
     match token {
         "diffuse" => process_diffuse_material(tokenizer, scene, state),
-        _=> return Err(format!("Unsupported material type {}", token).into())
+        _=> Err(format!("Unsupported material type {}", token).into())
     }
 }
 
 fn process_diffuse_material(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
                               state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
 
-    let mut diffuse: RGB = RGB::new(0.5, 0.5, 0.5);
+    let mut desc = MaterialDescription::default();
 
     let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
         match token {
-            "rgb reflectance" => diffuse = parse_rgb(tokenizer, "Material:rgb ")?,
+            "rgb reflectance" => desc.diffuse = parse_rgb(tokenizer, "Material:rgb ")?,
             _ => return Err(format!("Unsupported parameter in diffuse material: {}", token).into())
         }
         Ok(())
     };
     let result = process_attributes(tokenizer, state, &mut process_attribute)?;
 
-    let mut desc = MaterialDescription::default();
     // TODO improve this -- use unique name - MakeNamedMaterial?!
     let name = "Material_General_".to_string() + &scene.materials.len().to_string();
     desc.name = name.clone();
     desc.typ = MaterialType::Matte;
-    desc.diffuse = diffuse;
     scene.materials.push(desc);
     state.set_material(name);
     Ok(result)
@@ -483,30 +482,26 @@ fn process_light(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
     };
     match token {
         "point" => process_point_light(tokenizer, scene, state),
-        _=> return Err(format!("Unsupported light type {}", token).into())
+        _=> Err(format!("Unsupported light type {}", token).into())
     }
 }
 
 fn process_point_light(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
                        state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
 
-    let mut intensity: RGB = RGB::new(1.0, 1.0, 1.0);
-    let mut position: Point3 = Point3::new(0.0, 0.0, 0.0);
+    let mut desc = LightDescription::default();
 
     let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
         match token {
-            "rgb I" => intensity = parse_rgb(tokenizer, "PointLight:rgb ")?,
-            "point3 from" => position = parse_point3(tokenizer, "PointLight:point from ")?,
+            "rgb I" => desc.intensity = parse_rgb(tokenizer, "PointLight:rgb ")?,
+            "point3 from" => desc.position = parse_point3(tokenizer, "PointLight:point from ")?,
             _ => return Err(format!("Unsupported parameter in point light: {}", token).into())
         }
         Ok(())
     };
     let result = process_attributes(tokenizer, state, &mut process_attribute)?;
 
-    let mut desc = LightDescription::default();
     desc.typ = LightType::Point;
-    desc.intensity = intensity;
-    desc.position = position;
     scene.lights.push(desc);
     Ok(result)
 }
@@ -519,30 +514,26 @@ fn process_shape(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
     };
     match token {
         "sphere" => process_sphere_shape(tokenizer, scene, state),
-        _=> return Err(format!("Unsupported shape type {}", token).into())
+        _=> Err(format!("Unsupported shape type {}", token).into())
     }
 }
 
 fn process_sphere_shape(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
                        state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
 
-    let mut radius: f32 = 1.0;
-    let mut position: Point3 = Point3::new(0.0, 0.0, 0.0);
+    let mut desc = ShapeDescription::default();
 
     let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
         match token {
-            "float radius" => radius = extract_value(tokenizer, "Sphere:radius - ")?,
-            "point3 position" => position = parse_point3(tokenizer, "Sphere:position - ")?,
+            "float radius" => desc.radius = extract_value(tokenizer, "Sphere:radius - ")?,
+            "point3 position" => desc.position = parse_point3(tokenizer, "Sphere:position - ")?,
             _ => return Err(format!("Unsupported parameter in sphere shape: {}", token).into())
         }
         Ok(())
     };
     let result = process_attributes(tokenizer, state, &mut process_attribute)?;
 
-    let mut desc = ShapeDescription::default();
     desc.typ = ShapeType::Sphere;
-    desc.radius = radius;
-    desc.position = position;
     desc.material = state.current_material().clone();
     if !state.current_transformation().is_identity() {
         desc.transform = Some(state.current_transformation());
@@ -637,7 +628,7 @@ where T: FromStr, <T as FromStr>::Err: Display
     if token != "]" {
         return Err(format!("{} - Expected ']' token!", err_msg).into());
     }
-    return Ok(val);
+    Ok(val)
 }
 
 

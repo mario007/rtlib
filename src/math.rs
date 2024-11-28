@@ -17,7 +17,7 @@ pub fn sum_of_products(a: f32, b: f32, c: f32, d: f32) -> f32 {
     sum_of_products + err
 }
 
-#[inline]
+#[inline(always)]
 fn two_sum(a: f32, b: f32) -> (f32, f32) {
     let x = a + b;
     let z = x - a;
@@ -25,7 +25,7 @@ fn two_sum(a: f32, b: f32) -> (f32, f32) {
     (x, y)
 }
 
-#[inline]
+#[inline(always)]
 fn two_product_fma(a: f32, b: f32) -> (f32, f32) {
     let x = a * b;
     let y = a.mul_add(b, -x);

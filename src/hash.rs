@@ -25,7 +25,7 @@ pub fn murmur_hash64a(key: &[u8], seed: u64) -> u64 {
     if !rest.is_empty() {
         let mut k: [u8; 8] = [0; 8];
         k[0..rest.len()].clone_from_slice(rest);
-        h ^= u64::from_le_bytes(k.try_into().unwrap());
+        h ^= u64::from_le_bytes(k);
         h = h.wrapping_mul(m);
     }
     h ^= h >> r;
@@ -37,7 +37,7 @@ pub fn murmur_hash64a(key: &[u8], seed: u64) -> u64 {
 /// Convert arguments to byte array and call function that calculate murmurhash
 /// 
 /// * `arg1,...`: It takes up to four arguments. Arguments are rust primitive types
-/// that are converted to bytes using `to_le_bytes` method.
+///   that are converted to bytes using `to_le_bytes` method.
 #[macro_export]
 macro_rules! hash {
     ($e:expr) => {

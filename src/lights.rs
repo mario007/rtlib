@@ -68,7 +68,7 @@ impl Default for LightDescription {
     fn default() -> Self {
         Self {
             typ: LightType::Point,
-            intensity: RGB::new(0.0, 0.0, 0.0),
+            intensity: RGB::new(1.0, 1.0, 1.0),
             position: Point3::new(0.0, 0.0, 0.0)
         }
     }

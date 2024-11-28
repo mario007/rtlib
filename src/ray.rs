@@ -40,49 +40,41 @@ pub fn offset_ray_origin(hit: Point3, normal: Normal) -> Point3 {
     let of_i_y = (int_scale() * normal.y) as i32;
     let of_i_z = (int_scale() * normal.z) as i32;
 
-    let p_i_x: f32;
-    let p_i_y: f32;
-    let p_i_z: f32;
-
-    if hit.x < 0.0 {
-        p_i_x = int_as_float(float_as_int(hit.x) - of_i_x);
+    let p_i_x: f32 = if hit.x < 0.0 {
+        int_as_float(float_as_int(hit.x) - of_i_x)
     } else {
-        p_i_x = int_as_float(float_as_int(hit.x) + of_i_x);
-    }
+        int_as_float(float_as_int(hit.x) + of_i_x)
+    };
 
-    if hit.y < 0.0 {
-        p_i_y = int_as_float(float_as_int(hit.y) - of_i_y);
+    let p_i_y: f32 = if hit.y < 0.0 {
+        int_as_float(float_as_int(hit.y) - of_i_y)
     } else {
-        p_i_y = int_as_float(float_as_int(hit.y) + of_i_y);
-    }
+        int_as_float(float_as_int(hit.y) + of_i_y)
+    };
 
-    if hit.z < 0.0 {
-        p_i_z = int_as_float(float_as_int(hit.z) - of_i_z);
+    let p_i_z: f32 = if hit.z < 0.0 {
+        int_as_float(float_as_int(hit.z) - of_i_z)
     } else {
-        p_i_z = int_as_float(float_as_int(hit.z) + of_i_z);
-    }
+        int_as_float(float_as_int(hit.z) + of_i_z)
+    };
 
-    let rx: f32;
-    let ry: f32;
-    let rz: f32;
-
-    if hit.x.abs() < origin() {
-        rx = hit.x + float_scale() * normal.x;
+    let rx: f32 = if hit.x.abs() < origin() {
+        hit.x + float_scale() * normal.x
     } else {
-        rx = p_i_x;
-    }
+        p_i_x
+    };
 
-    if hit.y.abs() < origin() {
-        ry = hit.y + float_scale() * normal.y;
+    let ry: f32 = if hit.y.abs() < origin() {
+        hit.y + float_scale() * normal.y
     } else {
-        ry = p_i_y;
-    }
+        p_i_y
+    };
 
-    if hit.z.abs() < origin() {
-        rz = hit.z + float_scale() * normal.z;
+    let rz: f32 = if hit.z.abs() < origin() {
+        hit.z + float_scale() * normal.z
     } else {
-        rz = p_i_z;
-    }
+        p_i_z
+    };
 
     Point3::new(rx, ry, rz)
 

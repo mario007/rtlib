@@ -5,7 +5,7 @@ use crate::rgb::ImageSize;
 
 pub fn create_raster_to_ndc_transformation(resolution_x: usize, resolution_y: usize) -> Transformation {
     let ndc_to_raster = Transformation::scale(resolution_x as f32, -(resolution_y as f32), 1.0);
-    return ndc_to_raster.inverse();
+    ndc_to_raster.inverse()
 }
 
 pub fn create_ndc_to_screen_transformation(resolution_x: usize, resolution_y: usize) -> Transformation {
@@ -22,7 +22,7 @@ pub fn create_ndc_to_screen_transformation(resolution_x: usize, resolution_y: us
     let screen_to_ndc =
     Transformation::scale(scale_x, scale_y, 1.0) * 
     Transformation::translate(&Vec3::new(-pmin_x, -pmax_y, 0.0));
-    return screen_to_ndc.inverse();
+    screen_to_ndc.inverse()
 }
 
 pub fn create_screen_to_perspective_transformation(fov: f32, z_near: f32, z_far: f32) -> Transformation {

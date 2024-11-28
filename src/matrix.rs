@@ -26,7 +26,7 @@ impl Matrix4x4 {
 
     pub fn is_identity(&self) -> bool {
         for (i, row) in self.m.iter().enumerate() {
-            for (j, val) in row.iter().enumerate().take(4) {
+            for (j, val) in row.iter().enumerate() {
                 if i == j && *val != 1.0 {
                     return false
                 }
@@ -129,7 +129,7 @@ impl Mul for Matrix4x4 {
     fn mul(self, m2: Matrix4x4) -> Self::Output {
         let mut m = [[0.0f32; 4]; 4];
         for (i, row) in m.iter_mut().enumerate() {
-            for (j, val) in row.iter_mut().enumerate().take(4) {
+            for (j, val) in row.iter_mut().enumerate() {
                 *val = inner_product(
                     &[self.m[i][0], self.m[i][1], self.m[i][2], self.m[i][3]],
                     &[m2.m[0][j], m2.m[1][j], m2.m[2][j], m2.m[3][j]]
@@ -146,7 +146,7 @@ impl Mul<f32> for Matrix4x4 {
     fn mul(self, rhs: f32) -> Self::Output {
         let mut m = [[0.0f32; 4]; 4];
         for (i, row) in m.iter_mut().enumerate() {
-            for (j, val) in row.iter_mut().enumerate().take(4) {
+            for (j, val) in row.iter_mut().enumerate() {
                 *val = self.m[i][j] * rhs;
             }
         }
@@ -160,7 +160,7 @@ impl Mul<Matrix4x4> for f32 {
     fn mul(self, rhs: Matrix4x4) -> Self::Output {
         let mut m = [[0.0f32; 4]; 4];
         for (i, row) in m.iter_mut().enumerate() {
-            for (j, val) in row.iter_mut().enumerate().take(4) {
+            for (j, val) in row.iter_mut().enumerate() {
                 *val = rhs.m[i][j] * self;
             }
         }
@@ -174,7 +174,7 @@ impl Add for Matrix4x4 {
     fn add(self, rhs: Self) -> Self::Output {
         let mut m = [[0.0f32; 4]; 4];
         for (i, row) in m.iter_mut().enumerate() {
-            for (j, val) in row.iter_mut().enumerate().take(4) {
+            for (j, val) in row.iter_mut().enumerate() {
                 *val = self.m[i][j] + rhs.m[i][j];
             }
         }

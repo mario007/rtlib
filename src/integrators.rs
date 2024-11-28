@@ -29,7 +29,7 @@ pub fn ambient_occlusion_integrator(scene: &Scene, ao_settings: &AmbientOcclusio
             let px = x as f32 + rng.rand_f32();
             let py = y as f32 + rng.rand_f32();
             let ray = camera.generate_ray(px, py);
-            let rgb = ambient_occlusion(&ray, &geometry, &mut rng, cossample, maxdistance);
+            let rgb = ambient_occlusion(&ray, geometry, &mut rng, cossample, maxdistance);
             let sample = RGBPixelSample::new(rgb, 1.0);
             
             accum.add(x, y, &sample);
@@ -41,7 +41,7 @@ pub fn ambient_occlusion_integrator(scene: &Scene, ao_settings: &AmbientOcclusio
 pub fn ambient_occlusion(ray: &Ray, shapes: &Geometry, rng: &mut PCGRng,
                          cossample: bool, maxdistance: f32) -> RGB {
     
-    let result = shapes.intersect(&ray);
+    let result = shapes.intersect(ray);
     let si = match result {
         Some(si) => si,
         None => return RGB::new(1.0, 1.0, 1.0)
@@ -179,15 +179,15 @@ mod tests {
 
     #[test]
     fn test_render_scene() {
-        // let path = "D://rtlib_scenes//sphere//sphere.json";
+        let path = "D://rtlib_scenes//sphere//sphere.json";
         // let path = "D://rtlib_scenes//spheres//spheres.json";
         // let path = "D://rtlib_scenes//spheres_trans//spheres.json";
-        // let scene_descripton = load_scene_description_from_json(path);
+        let scene_descripton = load_scene_description_from_json(path);
 
         // let path = "D://rtlib_scenes//sphere//sphere.pbrt";
-        let path = "D://rtlib_scenes//spheres//spheres.pbrt";
+        // let path = "D://rtlib_scenes//spheres//spheres.pbrt";
         // let path = "D://rtlib_scenes//spheres_trans//spheres.pbrt";
-        let scene_descripton = parse_pbrt_v4_input_file(path);
+        // let scene_descripton = parse_pbrt_v4_input_file(path);
 
         let scene_description = match scene_descripton {    
             Ok(scene_descripton) => {
