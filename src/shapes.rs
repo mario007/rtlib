@@ -420,31 +420,31 @@ impl Geometry {
         match isect {
             GeometryIntersection::Sphere(shape_intersection) => {
                 let hit_point = ray.point_at(shape_intersection.t);
-                let mut normal = self.spheres.normal(&ray, &shape_intersection);
+                let mut normal = self.spheres.normal(ray, shape_intersection);
                 let mut back_face = false;
                 if (-ray.direction) * normal < 0.0 {
                     normal = -normal;
                     back_face = true;
                 }
-                let material_id = self.spheres.material(&shape_intersection);
+                let material_id = self.spheres.material(shape_intersection);
                 Some(SurfaceInteraction { t: shape_intersection.t, hit_point, normal, material_id, back_face })
             }
             GeometryIntersection::Triangle(shape_intersection) => {
                 let hit_point = ray.point_at(shape_intersection.t);
-                let mut normal = self.triangles.normal(&ray, &shape_intersection);
+                let mut normal = self.triangles.normal(ray, shape_intersection);
                 let mut back_face = false;
                 if (-ray.direction) * normal < 0.0 {
                     normal = -normal;
                     back_face = true;
                 }
-                let material_id = self.triangles.material(&shape_intersection);
+                let material_id = self.triangles.material(shape_intersection);
                 Some(SurfaceInteraction { t: shape_intersection.t, hit_point, normal, material_id, back_face })
             }
             GeometryIntersection::None => None
         }
     }
 
-    pub fn from_shape_descriptions(descs: &Vec<ShapeDescription>, mat_names: &HashMap<String, usize>) -> Self {
+    pub fn from_shape_descriptions(descs: &[ShapeDescription], mat_names: &HashMap<String, usize>) -> Self {
         let mut geometry = Self::new();
         for desc in descs.iter() {
             let material_id = mat_names[&desc.material] as u32;
@@ -464,6 +464,11 @@ impl Geometry {
     }
 }
 
+impl Default for Geometry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[cfg(test)]
 mod tests {
