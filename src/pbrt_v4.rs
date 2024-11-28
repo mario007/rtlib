@@ -19,6 +19,7 @@ use crate::lights::LightDescription;
 use crate::lights::LightType;
 use crate::shapes::ShapeDescription;
 use crate::shapes::ShapeType;
+use crate::scene::AmbientOcclusionSettings;
 
 struct AreaLightInfo {
     radiance: RGB,
@@ -176,10 +177,10 @@ fn parse_input_string(text: &str, scene: &mut SceneDescription, state: &mut Pars
             // "MakeNamedMaterial" => process_make_named_material(tokens, scene, state)?,
             // "NamedMaterial" => process_named_material(tokens, scene, state)?,
             // "Accelerator" => process_accelerator(tokens, scene, state)?,
-            // "Scale" => process_scale_transform(tokens, scene, state)?,
-            // "Translate" => process_translate_transform(tokens, scene, state)?,
+            "Scale" => process_scale_transform(&mut ct, scene, state)?,
+            "Translate" => process_translate_transform(&mut ct, scene, state)?,
             // "Rotate" => process_rotate_transform(tokens, scene, state)?,
-            // "Identity" => process_identity_transform(tokens, scene, state)?,
+            "Identity" => process_identity_transform(&mut ct, scene, state)?,
             // "Transform" => process_transform(tokens, scene, state)?,
             // "ConcatTransform" => process_concat_transform(tokens, scene, state)?,
             _=> return Err(format!("Unsupported directive to process: {}", cur_directive).into())
@@ -215,6 +216,35 @@ fn process_look_at(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
     let up = Vec3::new(v0, v1, v2);
     let tranformation = state.current_transformation() * Transformation::look_at(eye, look_at, up);
     state.set_transformation(tranformation);
+    Ok(next_directive(tokenizer))
+}
+
+fn process_translate_transform(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
+    state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+
+    let v0 = parse_f32(tokenizer, "Translate: x ")?;
+    let v1 = parse_f32(tokenizer, "Translate: y ")?;
+    let v2 = parse_f32(tokenizer, "Translate: z ")?;
+    let delta = Vec3::new(v0, v1, v2);
+    let transformation = state.current_transformation() * Transformation::translate(&delta);
+    state.set_transformation(transformation);
+    Ok(next_directive(tokenizer))
+}
+
+fn process_scale_transform(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
+    state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+
+    let v0 = parse_f32(tokenizer, "Scale: x ")?;
+    let v1 = parse_f32(tokenizer, "Scale: y ")?;
+    let v2 = parse_f32(tokenizer, "Scale: z ")?;
+    let transformation = state.current_transformation() * Transformation::scale(v0, v1, v2);
+    state.set_transformation(transformation);
+    Ok(next_directive(tokenizer))
+}
+
+fn process_identity_transform(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
+    state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+    state.set_transformation(Transformation::identity());
     Ok(next_directive(tokenizer))
 }
 
@@ -264,8 +294,7 @@ fn process_integrator(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescriptio
     };
     match token {
         "direct_lighting" => process_integrator_direct_lighting(tokenizer, scene, state),
-        // "intersector" => process_integrator_isect(tokens, scene, state)?,
-        // "path" => process_integrator_path(tokens, scene, state)?,
+        "ambientocclusion" => process_integrator_ambientocclusion(tokenizer, scene, state),
         _=> return Err(format!("Unsupported integrator type {}", token).into())
     }
 }
@@ -275,6 +304,25 @@ fn process_integrator_direct_lighting(tokenizer: &mut PBRTTokenizer, scene: &mut
 
     scene.settings.rendering_algorithm = RenderingAlgorithm::DirectLighting;                                   
     Ok(next_directive(tokenizer))
+}
+
+fn process_integrator_ambientocclusion(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
+                                       state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+
+    let mut settings = AmbientOcclusionSettings::default();
+
+    let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
+        match token {
+            "bool cossample" => settings.cossample = extract_value(tokenizer, "Ambientocclusion::cossample - ")?,
+            "float maxdistance" => settings.maxdistance = extract_value(tokenizer, "Ambientocclusion::maxdistance - ")?,
+            _ => return Err(format!("Unsupported parameter in ambient occlusion integrator: {}", token).into())
+        }
+        Ok(())
+    };
+    let result = process_attributes(tokenizer, state, &mut process_attribute)?;
+
+    scene.settings.rendering_algorithm = RenderingAlgorithm::AmbientOcclusion(settings);                                                                      
+    Ok(result)
 }
 
 fn process_attributes(tokenizer: &mut PBRTTokenizer,
@@ -496,6 +544,9 @@ fn process_sphere_shape(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescript
     desc.radius = radius;
     desc.position = position;
     desc.material = state.current_material().clone();
+    if !state.current_transformation().is_identity() {
+        desc.transform = Some(state.current_transformation());
+    }
     scene.shapes.push(desc);
     Ok(result)
 }

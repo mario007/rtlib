@@ -369,6 +369,7 @@ pub struct SurfaceInteraction {
     pub hit_point: Point3,
     pub normal: Normal,
     pub material_id: u32,
+    pub back_face: bool,
 }
 
 impl Geometry {
@@ -419,18 +420,25 @@ impl Geometry {
         match isect {
             GeometryIntersection::Sphere(shape_intersection) => {
                 let hit_point = ray.point_at(shape_intersection.t);
-                let normal = self.spheres.normal(&ray, &shape_intersection);
+                let mut normal = self.spheres.normal(&ray, &shape_intersection);
+                let mut back_face = false;
+                if (-ray.direction) * normal < 0.0 {
+                    normal = -normal;
+                    back_face = true;
+                }
                 let material_id = self.spheres.material(&shape_intersection);
-                Some(SurfaceInteraction { t: shape_intersection.t, hit_point, normal, material_id })
+                Some(SurfaceInteraction { t: shape_intersection.t, hit_point, normal, material_id, back_face })
             }
             GeometryIntersection::Triangle(shape_intersection) => {
                 let hit_point = ray.point_at(shape_intersection.t);
                 let mut normal = self.triangles.normal(&ray, &shape_intersection);
+                let mut back_face = false;
                 if (-ray.direction) * normal < 0.0 {
                     normal = -normal;
+                    back_face = true;
                 }
                 let material_id = self.triangles.material(&shape_intersection);
-                Some(SurfaceInteraction { t: shape_intersection.t, hit_point, normal, material_id })
+                Some(SurfaceInteraction { t: shape_intersection.t, hit_point, normal, material_id, back_face })
             }
             GeometryIntersection::None => None
         }
@@ -443,7 +451,7 @@ impl Geometry {
             match desc.typ {
                 ShapeType::Sphere => {
                     let sphere = Sphere::new(desc.position, desc.radius);
-                    geometry.add_sphere(sphere, None, material_id);
+                    geometry.add_sphere(sphere, desc.transform, material_id);
                 }
                 ShapeType::Mesh => {
                     panic!("Meshes are not supported yet");
@@ -498,7 +506,8 @@ pub struct ShapeDescription {
     pub typ: ShapeType,
     pub material: String,
     pub position: Point3,
-    pub radius: f32
+    pub radius: f32,
+    pub transform: Option<Transformation>
 }
 
 impl Default for ShapeDescription {
@@ -507,7 +516,8 @@ impl Default for ShapeDescription {
             typ: ShapeType::Sphere,
             material: String::new(),
             position: Point3::new(0.0, 0.0, 0.0),
-            radius: 0.0
+            radius: 0.0,
+            transform: None
         }
     }
 }

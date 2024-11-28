@@ -7,9 +7,20 @@ use crate::materials::{MaterialDescription, BSDFInterface};
 use crate::shapes::{Geometry, ShapeDescription};
 use crate::lights::{LightDescription, LightInterface};
 
+#[derive(Clone, Copy)]
+pub struct AmbientOcclusionSettings {
+    pub cossample: bool,
+    pub maxdistance: f32
+}
+
+impl Default for AmbientOcclusionSettings {
+    fn default() -> Self {
+        Self { cossample: true, maxdistance: 1e38 }
+    }
+}
 
 pub enum RenderingAlgorithm {
-    AmbientOcclusion,
+    AmbientOcclusion(AmbientOcclusionSettings),
     DirectLighting,
     PathTracer
 }
@@ -28,7 +39,7 @@ impl Default for Settings {
         Self {
             resolution: ImageSize::new(256, 256),
             spp: 1,
-            rendering_algorithm: RenderingAlgorithm::AmbientOcclusion,
+            rendering_algorithm: RenderingAlgorithm::AmbientOcclusion(AmbientOcclusionSettings::default()),
             tonemap: TMOType::Linear,
             output_fname: "output.png".to_string(),
             nthreads: 1

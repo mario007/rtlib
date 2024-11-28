@@ -4,7 +4,7 @@ use crate::vec::Vec3;
 use crate::vec::Normal;
 use crate::rng::PCGRng;
 use crate::frame::Frame;
-use crate::samplings::cosine_hemisphere_direction;
+use crate::samplings::sample_cos_hemisphere;
 
 pub struct BSDFEvalSample {
     pub color: RGB,
@@ -46,10 +46,10 @@ impl BSDFInterface for MatteMaterial {
     }
 
     fn sample(&self, _wo: Vec3, normal: Normal, rng: &mut PCGRng) -> Option<BSDFSample> {
-        let direction = cosine_hemisphere_direction(rng.rand_f32(), rng.rand_f32());
-        let direction = Frame::from(normal).to_world(direction).normalize();
+        let sample_direction = sample_cos_hemisphere(rng.rand_f32(), rng.rand_f32());
+        let direction = Frame::from(normal).to_world(sample_direction.direction).normalize();
         let color = self.reflectance * std::f32::consts::FRAC_1_PI;
-        let pdfw = (normal * direction).abs() * std::f32::consts::FRAC_1_PI;
+        let pdfw = sample_direction.pdfw;
         if pdfw == 0.0 {
             return None
         }

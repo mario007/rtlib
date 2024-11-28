@@ -24,6 +24,20 @@ impl Matrix4x4 {
         Matrix4x4::new(m)
     }
 
+    pub fn is_identity(&self) -> bool {
+        for (i, row) in self.m.iter().enumerate() {
+            for (j, val) in row.iter().enumerate().take(4) {
+                if i == j && *val != 1.0 {
+                    return false
+                }
+                if i != j && *val != 0.0 {
+                    return false
+                }
+            }
+        }
+        true   
+    }
+
     pub fn transpose(&self) -> Matrix4x4 {
         let m = [
             [self.m[0][0],   self.m[1][0], self.m[2][0], self.m[3][0]],

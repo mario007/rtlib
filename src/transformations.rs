@@ -122,6 +122,14 @@ impl Transformation {
         Self { mat: self.inv_mat, inv_mat: self.mat }
     }
 
+    pub fn identity() -> Self {
+        Self { mat: Matrix4x4::identity(), inv_mat: Matrix4x4::identity() }
+    }
+
+    pub fn is_identity(&self) -> bool {
+        self.mat.is_identity()
+    }
+
 }
 
 impl Mul for Transformation {

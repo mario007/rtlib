@@ -10,7 +10,8 @@ use crate::materials::{MaterialDescription, MaterialType};
 use crate::shapes::{ShapeDescription, ShapeType};
 use crate::lights::{LightDescription, LightType};
 use crate::scene::{SceneDescription, RenderingAlgorithm};
-use crate::transformations::Transformation;
+use crate::transformations::{self, Transformation};
+use crate::scene::AmbientOcclusionSettings;
 
 
 pub fn load_scene_description_from_json<P: AsRef<Path>>(path: P) -> Result<SceneDescription, Box<dyn Error>> {
@@ -22,6 +23,10 @@ pub fn load_scene_description_from_json<P: AsRef<Path>>(path: P) -> Result<Scene
     let global = &val["global"];
     if !global.is_null() {
         parse_global(&mut scene_desc, global)?;
+    }
+    let integrator = &val["integrator"];
+    if !integrator.is_null() {
+        parse_integrator(&mut scene_desc, integrator)?;
     }
     let camera = &val["camera"];
     if !camera.is_null() {
@@ -57,16 +62,6 @@ fn parse_global(scene_desc: &mut SceneDescription, section: &Value) -> Result<()
         let spp = parse_usize(&section["spp"], "spp")?;
         scene_desc.settings.spp = spp;
     }
-    if !section["rendering"].is_null() {
-        let alg = parse_string(&section["rendering"], "rendering")?;
-        let algorithm = match alg.as_str() {
-            "ambient" => RenderingAlgorithm::AmbientOcclusion,
-            "direct_lighting" => RenderingAlgorithm::DirectLighting,
-            "path" => RenderingAlgorithm::PathTracer,
-            _ => return Err(format!("Unknown rendering algorithm: {}", alg).into())
-        };
-        scene_desc.settings.rendering_algorithm = algorithm;
-    }
     if !section["tonemap"].is_null() {
         let tmo = parse_string(&section["tonemap"], "tonemap")?;
         let tmo_type = match tmo.as_str() {
@@ -86,6 +81,43 @@ fn parse_global(scene_desc: &mut SceneDescription, section: &Value) -> Result<()
         scene_desc.settings.nthreads = nthreads;
     }
 
+    Ok(())
+}
+
+fn parse_integrator(scene_desc: &mut SceneDescription, section: &Value) -> Result<(), Box<dyn Error>> {
+    if !section["type"].is_null() {
+        let alg = parse_string(&section["type"], "integrator->type")?;
+        match alg.as_str() {
+            "ambientocclusion" => parse_ambientocclusion(scene_desc, section)?,
+            "direct_lighting" => parse_directlighting(scene_desc, section)?,
+            "path" => parse_path(scene_desc, section)?,
+            _ => return Err(format!("Unknown rendering algorithm: {}", alg).into())
+        }
+    }
+    Ok(())
+}
+
+fn parse_ambientocclusion(scene_desc: &mut SceneDescription, section: &Value) -> Result<(), Box<dyn Error>> {
+    let mut settings = AmbientOcclusionSettings::default();
+    if !section["cossample"].is_null() {
+        let cossample = parse_bool(&section["cossample"], "integrator->cossample")?;
+        settings.cossample = cossample;
+    }
+    if !section["maxdistance"].is_null() {
+        let maxdistance = parse_f32(&section["maxdistance"], "integrator->maxdistance")?;
+        settings.maxdistance = maxdistance;
+    }
+    scene_desc.settings.rendering_algorithm = RenderingAlgorithm::AmbientOcclusion(settings);
+    Ok(())
+}
+
+fn parse_directlighting(scene_desc: &mut SceneDescription, section: &Value) -> Result<(), Box<dyn Error>> {
+    scene_desc.settings.rendering_algorithm = RenderingAlgorithm::DirectLighting;
+    Ok(())
+}
+
+fn parse_path(scene_desc: &mut SceneDescription, section: &Value) -> Result<(), Box<dyn Error>> {
+    scene_desc.settings.rendering_algorithm = RenderingAlgorithm::PathTracer;
     Ok(())
 }
 
@@ -199,29 +231,55 @@ fn parse_shape(section: &Value) -> Result<ShapeDescription, Box<dyn Error>> {
 }
 
 fn parse_sphere_shape(section: &Value) -> Result<ShapeDescription, Box<dyn Error>> {
-    let material = parse_string(&section["material"], "shape->material")?;
-    let position = parse_point3(&section["position"], "shape->position")?;
-    let radius = parse_f32(&section["radius"], "shape->radius")?;
     let mut desc = ShapeDescription::default();
+    let material = parse_string(&section["material"], "shape->material")?;
+    if !section["position"].is_null() {
+        let position = parse_point3(&section["position"], "shape->position")?;
+        desc.position = position;
+    }
+    let radius = parse_f32(&section["radius"], "shape->radius")?;
+    
     desc.typ = ShapeType::Sphere;
     desc.material = material;
-    desc.position = position;
     desc.radius = radius;
-    // if !section["transform"].is_null() {
-    //     let transform = parse_transform(&section["transform"])?;
-    // }
+    if !section["transformations"].is_null() {
+        let transform = parse_transformations(&section["transformations"])?;
+        desc.transform = Some(transform);
+    }
     Ok(desc)
 }
 
-// fn parse_transform(section: &Value) -> Result<Transformation, Box<dyn Error>> {
-//     let t = Transformation::default();
-    
-//     let translation = parse_point3(&section["translation"], "transform->translation")?;
-//     let rotation = parse_quat(&section["rotation"], "transform->rotation")?;
-//     let scale = parse_vec3(&section["scale"], "transform->scale")?;
-//     Ok(Transform::new(translation, rotation, scale))
-// }
+fn parse_transformations(section: &Value) -> Result<Transformation, Box<dyn Error>> {
+    let transformations = match section.as_array() {
+        Some(transformations) => transformations,
+        None => return Err("List of transformations expected!".into())
+    };
+    let mut transform = Transformation::identity();
+    for transformation in transformations.iter() {
+        let t = parse_transformation(transformation)?;
+        transform = transform * t;
+    }
+    Ok(transform)
+}
 
+fn parse_transformation(section: &Value) -> Result<Transformation, Box<dyn Error>> {
+    let typ = parse_string(&section["type"], "transformation->type")?;
+    match typ.as_str() {
+        "translate" => parse_translate(section),
+        "scale" => parse_scale(section),
+        _ => return Err(format!("Unknown transformation type {}", typ).into())
+    }
+}
+
+fn parse_translate(section: &Value) -> Result<Transformation, Box<dyn Error>> {
+    let delta = parse_vec3(&section["delta"], "transformation->translate->delta")?;
+    Ok(Transformation::translate(&delta))
+}
+
+fn parse_scale(section: &Value) -> Result<Transformation, Box<dyn Error>> {
+    let delta = parse_vec3(&section["delta"], "transformation->scale->delta")?;
+    Ok(Transformation::scale(delta.x, delta.y, delta.z))
+}
 
 fn parse_rgb_color(section: &Value, field_name: &str) -> Result<RGB, Box<dyn Error>> {
     let r = parse_f32(&section[0], field_name)?;
@@ -238,6 +296,14 @@ fn parse_resolution(section: &Value) -> Result<ImageSize, Box<dyn Error>> {
     let width = parse_usize(&section[0], "resolution width")?;
     let height = parse_usize(&section[1], "resolution height")?;
     Ok(ImageSize::new(width, height))
+}
+
+fn parse_bool(section: &Value, field_name: &str) -> Result<bool, Box<dyn Error>> {
+    let val = match section.as_bool() {
+        Some(val) => val,
+        None => return Err(format!("Field: {}", field_name).into())
+    };
+    Ok(val)
 }
 
 fn parse_usize(section: &Value, field_name: &str) -> Result<usize, Box<dyn Error>> {
