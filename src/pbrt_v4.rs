@@ -19,7 +19,9 @@ use crate::lights::LightDescription;
 use crate::lights::LightType;
 use crate::shapes::ShapeDescription;
 use crate::shapes::ShapeType;
-use crate::scene::AmbientOcclusionSettings;
+use crate::scene::{AmbientOcclusionProperties, RandomWalkProperties};
+use crate::matrix::Matrix4x4;
+use crate::scene::{Sampler, RandomSamplerSettings, StratifiedSamplerSettings};
 
 struct AreaLightInfo {
     radiance: RGB,
@@ -181,8 +183,8 @@ fn parse_input_string(text: &str, scene: &mut SceneDescription, state: &mut Pars
             "Translate" => process_translate_transform(&mut ct, scene, state)?,
             // "Rotate" => process_rotate_transform(tokens, scene, state)?,
             "Identity" => process_identity_transform(&mut ct, scene, state)?,
-            // "Transform" => process_transform(tokens, scene, state)?,
-            // "ConcatTransform" => process_concat_transform(tokens, scene, state)?,
+            "Transform" => process_transform(&mut ct, scene, state)?,
+            "ConcatTransform" => process_concat_transform(&mut ct, scene, state)?,
             _=> return Err(format!("Unsupported directive to process: {}", cur_directive).into())
         };
         match new_directive {
@@ -243,6 +245,42 @@ fn process_scale_transform(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDesc
     Ok(next_directive(tokenizer))
 }
 
+fn process_transform(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
+    state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+
+    let values = parse_f32x3_values(tokenizer, "Transform: ")?;
+    if values.len() != 16 {
+        return Err("Transform: Exactly 16 values expected!".to_string().into())
+    }
+    let m = [
+        [values[0], values[4], values[8],  values[12]],
+        [values[1], values[5], values[9],  values[13]],
+        [values[2], values[6], values[10], values[14]],
+        [values[3], values[7], values[11], values[15]],
+    ];
+    let transform = Transformation::from(Matrix4x4::new(m));
+    state.set_transformation(transform);
+    Ok(next_directive(tokenizer))
+}
+
+fn process_concat_transform(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
+    state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+
+    let values = parse_f32x3_values(tokenizer, "ConcatTransform: ")?;
+    if values.len() != 16 {
+        return Err("ConcatTransform: Exactly 16 values expected!".to_string().into())
+    }
+    let m = [
+        [values[0], values[4], values[8],  values[12]],
+        [values[1], values[5], values[9],  values[13]],
+        [values[2], values[6], values[10], values[14]],
+        [values[3], values[7], values[11], values[15]],
+    ];
+    let transform = Transformation::from(Matrix4x4::new(m));
+    state.set_transformation(state.current_transformation() * transform);
+    Ok(next_directive(tokenizer))
+}
+
 fn process_identity_transform(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
     state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
     state.set_transformation(Transformation::identity());
@@ -294,23 +332,24 @@ fn process_integrator(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescriptio
         None => return Err("Integrator: Type of integrator not specified!".into())
     };
     match token {
-        "direct_lighting" => process_integrator_direct_lighting(tokenizer, scene, state),
-        "ambientocclusion" => process_integrator_ambientocclusion(tokenizer, scene, state),
+        "direct_lighting" => direct_lighting_integrator(tokenizer, scene, state),
+        "ambientocclusion" => ambientocclusion_integrator(tokenizer, scene, state),
+        "randomwalk" => randomwalk_integrator(tokenizer, scene, state),
         _=> Err(format!("Unsupported integrator type {}", token).into())
     }
 }
 
-fn process_integrator_direct_lighting(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
+fn direct_lighting_integrator(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
                                       _state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
 
     scene.settings.rendering_algorithm = RenderingAlgorithm::DirectLighting;                                   
     Ok(next_directive(tokenizer))
 }
 
-fn process_integrator_ambientocclusion(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
+fn ambientocclusion_integrator(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
                                        state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
 
-    let mut settings = AmbientOcclusionSettings::default();
+    let mut settings = AmbientOcclusionProperties::default();
 
     let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
         match token {
@@ -325,6 +364,25 @@ fn process_integrator_ambientocclusion(tokenizer: &mut PBRTTokenizer, scene: &mu
     scene.settings.rendering_algorithm = RenderingAlgorithm::AmbientOcclusion(settings);                                                                      
     Ok(result)
 }
+
+fn randomwalk_integrator(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
+                         state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+
+    let mut settings = RandomWalkProperties::default();
+
+    let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
+        match token {
+            "integer maxdepth" => settings.maxdepth = extract_value(tokenizer, "Ambientocclusion::cossample - ")?,
+            _ => return Err(format!("Unsupported parameter in random walk integrator: {}", token).into())
+        }
+        Ok(())
+    };
+    let result = process_attributes(tokenizer, state, &mut process_attribute)?;
+
+    scene.settings.rendering_algorithm = RenderingAlgorithm::RandomWalk(settings);                                                                      
+    Ok(result)
+}
+
 
 fn process_attributes(tokenizer: &mut PBRTTokenizer,
                       state: &mut ParseState,
@@ -392,7 +450,7 @@ fn process_sampler(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
         "halton" => process_halton_sampler(tokenizer, scene, state),
         "paddedsobol" => process_independent_sampler(tokenizer, scene, state),
         "sobol" => process_independent_sampler(tokenizer, scene, state),
-        "stratified" => process_independent_sampler(tokenizer, scene, state),
+        "stratified" => process_stratified_sampler(tokenizer, scene, state),
         "zsobol" => process_independent_sampler(tokenizer, scene, state),
         _ => Err(format!("Sampler: Unsupported sampler type - {}", sampler_type).into())
     }
@@ -401,12 +459,12 @@ fn process_sampler(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
 fn process_independent_sampler(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
                               state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
 
-    let mut _seed: u64 = 0;
     let mut pixelsamples: usize = 1;
+    let mut settings = RandomSamplerSettings::default();
 
     let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
         match token {
-            "integer seed" => _seed = extract_value(tokenizer, "Sampler::seed - ")?,
+            "integer seed" => settings.seed = extract_value(tokenizer, "Sampler::seed - ")?,
             "integer pixelsamples" => pixelsamples = extract_value(tokenizer, "Sampler::pixelsamples - ")?,
             _ => return Err(format!("Unsupported parameter in independent sampler: {}", token).into())
         }
@@ -414,9 +472,33 @@ fn process_independent_sampler(tokenizer: &mut PBRTTokenizer, scene: &mut SceneD
     };
     let result = process_attributes(tokenizer, state, &mut process_attribute)?;
 
+    scene.sampler = Some(Sampler::Random(settings));
     scene.settings.spp = pixelsamples;
     Ok(result)
 }
+
+fn process_stratified_sampler(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
+                              state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+
+    let mut settings = StratifiedSamplerSettings::default();
+
+    let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
+        match token {
+            "integer seed" => settings.seed = extract_value(tokenizer, "Sampler::seed - ")?,
+            "integer xsamples" => settings.xsamples = extract_value(tokenizer, "Sampler::xsamples - ")?,
+            "integer ysamples" => settings.ysamples = extract_value(tokenizer, "Sampler::ysamples - ")?,
+            "bool jitter" => settings.jitter = extract_value(tokenizer, "Sampler::jitter - ")?,
+            _ => return Err(format!("Unsupported parameter in stratified sampler: {}", token).into())
+        }
+        Ok(())
+    };
+    let result = process_attributes(tokenizer, state, &mut process_attribute)?;
+
+    scene.settings.spp = (settings.xsamples * settings.ysamples) as usize;
+    scene.sampler = Some(Sampler::Stratified(settings));
+    Ok(result)
+}
+
 
 fn process_halton_sampler(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
                               state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
@@ -501,6 +583,11 @@ fn process_point_light(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescripti
     };
     let result = process_attributes(tokenizer, state, &mut process_attribute)?;
 
+    if !state.current_transformation().is_identity() {
+        let t = Transformation::translate(&Vec3::from(desc.position)) * state.current_transformation();
+        desc.position = Point3::new(0.0, 0.0, 0.0) * t;
+    }
+
     desc.typ = LightType::Point;
     scene.lights.push(desc);
     Ok(result)
@@ -576,7 +663,6 @@ fn parse_vec3(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<Vec3,  Box
     Ok(Vec3::new(v0, v1, v2))
 }
 
-
 fn parse_f32x3(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<(f32, f32, f32),  Box<dyn Error>> {
     let token = match tokenizer.next() {
         Some(token) => token.trim(),
@@ -596,6 +682,32 @@ fn parse_f32x3(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<(f32, f32
         return Err(format!("{} - Expected ']' token!", err_msg).into());
     }
     Ok((v0, v1, v2))
+}
+
+fn parse_f32x3_values(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<Vec<f32>, Box<dyn Error>> {
+    let token = match tokenizer.next() {
+        Some(token) => token.trim(),
+        None => return Err(format!("{} - Missing token!", err_msg).into())
+    };
+    if token != "[" {
+        return Err(format!("{} - Expected '[' token!", err_msg).into());
+    }
+    let mut values = Vec::<f32>::new();
+    loop {
+        let token = match tokenizer.next() {
+            Some(token) => token.trim(),
+            None => return Err(format!("{} - Missing ']' token!", err_msg).into())
+        };
+        if token == "]" {
+            break;
+        }
+        let val: f32 = match token.parse() {
+            Err(e) => return Err(format!("{} - Parsing '{}':{}", err_msg, token, e).into()),
+            Ok(val) => val
+        };
+        values.push(val);
+    }
+    Ok(values)
 }
 
 

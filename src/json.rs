@@ -10,8 +10,9 @@ use crate::materials::{MaterialDescription, MaterialType};
 use crate::shapes::{ShapeDescription, ShapeType};
 use crate::lights::{LightDescription, LightType};
 use crate::scene::{SceneDescription, RenderingAlgorithm};
-use crate::transformations::{self, Transformation};
-use crate::scene::AmbientOcclusionSettings;
+use crate::transformations::Transformation;
+use crate::scene::AmbientOcclusionProperties;
+use crate::scene::{RandomSamplerSettings, Sampler, StratifiedSamplerSettings};
 
 
 pub fn load_scene_description_from_json<P: AsRef<Path>>(path: P) -> Result<SceneDescription, Box<dyn Error>> {
@@ -23,6 +24,10 @@ pub fn load_scene_description_from_json<P: AsRef<Path>>(path: P) -> Result<Scene
     let global = &val["global"];
     if !global.is_null() {
         parse_global(&mut scene_desc, global)?;
+    }
+    let sampler = &val["sampler"];
+    if !sampler.is_null() {
+        parse_sampler(&mut scene_desc, sampler)?;
     }
     let integrator = &val["integrator"];
     if !integrator.is_null() {
@@ -84,6 +89,58 @@ fn parse_global(scene_desc: &mut SceneDescription, section: &Value) -> Result<()
     Ok(())
 }
 
+
+fn parse_sampler(scene_desc: &mut SceneDescription, section: &Value) -> Result<(), Box<dyn Error>> {
+    if !section["type"].is_null() {
+        let alg = parse_string(&section["type"], "sampler->type")?;
+        match alg.as_str() {
+            "independent" => parse_independent_sampler(scene_desc, section)?,
+            "stratified" => parse_stratified_sampler(scene_desc, section)?,
+            _ => return Err(format!("Unsupported sampler type: {}", alg).into())
+        }
+    }
+    Ok(())
+}
+
+fn parse_independent_sampler(scene_desc: &mut SceneDescription, section: &Value) -> Result<(), Box<dyn Error>> {
+    let mut settings = RandomSamplerSettings::default();
+    if !section["seed"].is_null() {
+        let seed = parse_usize(&section["seed"], "sampler->seed")?;
+        settings.seed = seed as u64;
+    }
+    if !section["pixelsamples"].is_null() {
+        let nsamples = parse_usize(&section["pixelsamples"], "sampler->pixelsamples")?;
+        scene_desc.settings.spp = nsamples;
+    }
+    scene_desc.sampler = Some(Sampler::Random(settings));
+    Ok(())
+}
+
+fn parse_stratified_sampler(scene_desc: &mut SceneDescription, section: &Value) -> Result<(), Box<dyn Error>> {
+    let mut settings = StratifiedSamplerSettings::default();
+
+    if !section["seed"].is_null() {
+        let seed = parse_usize(&section["seed"], "sampler->seed")?;
+        settings.seed = seed as u64;
+    }
+    if !section["xsamples"].is_null() {
+        let xsamples = parse_usize(&section["xsamples"], "sampler->xsamples")?;
+        settings.xsamples = xsamples as u32;
+    }
+    if !section["ysamples"].is_null() {
+        let ysamples = parse_usize(&section["ysamples"], "sampler->ysamples")?;
+        settings.ysamples = ysamples as u32;
+    }
+    if !section["jitter"].is_null() {
+        let jitter = parse_bool(&section["jitter"], "sampler->jitter")?;
+        settings.jitter = jitter;
+    }
+    scene_desc.settings.spp = (settings.xsamples * settings.ysamples) as usize;
+    scene_desc.sampler = Some(Sampler::Stratified(settings));
+    Ok(())
+}
+
+
 fn parse_integrator(scene_desc: &mut SceneDescription, section: &Value) -> Result<(), Box<dyn Error>> {
     if !section["type"].is_null() {
         let alg = parse_string(&section["type"], "integrator->type")?;
@@ -98,7 +155,7 @@ fn parse_integrator(scene_desc: &mut SceneDescription, section: &Value) -> Resul
 }
 
 fn parse_ambientocclusion(scene_desc: &mut SceneDescription, section: &Value) -> Result<(), Box<dyn Error>> {
-    let mut settings = AmbientOcclusionSettings::default();
+    let mut settings = AmbientOcclusionProperties::default();
     if !section["cossample"].is_null() {
         let cossample = parse_bool(&section["cossample"], "integrator->cossample")?;
         settings.cossample = cossample;

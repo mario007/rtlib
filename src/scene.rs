@@ -6,23 +6,78 @@ use crate::camera::{PerspectiveCameraDescriptor, PerspectiveCamera};
 use crate::materials::{MaterialDescription, BSDFInterface};
 use crate::shapes::{Geometry, ShapeDescription};
 use crate::lights::{LightDescription, LightInterface};
+use crate::samplers::SamplerInterface;
+use crate::samplers::RandomPathSampler;
+use crate::samplers::StratifiedPathSampler;
+
 
 #[derive(Clone, Copy)]
-pub struct AmbientOcclusionSettings {
+pub struct AmbientOcclusionProperties {
     pub cossample: bool,
     pub maxdistance: f32
 }
 
-impl Default for AmbientOcclusionSettings {
+impl Default for AmbientOcclusionProperties {
     fn default() -> Self {
         Self { cossample: true, maxdistance: 1e38 }
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct RandomWalkProperties {
+    pub maxdepth: usize
+}
+
+impl Default for RandomWalkProperties {
+    fn default() -> Self {
+        Self { maxdepth: 5 }
+    }
+}
+
 pub enum RenderingAlgorithm {
-    AmbientOcclusion(AmbientOcclusionSettings),
+    AmbientOcclusion(AmbientOcclusionProperties),
+    RandomWalk(RandomWalkProperties),
     DirectLighting,
     PathTracer
+}
+
+pub struct RandomSamplerSettings {
+    pub seed: u64
+}
+
+impl Default for RandomSamplerSettings {
+    fn default() -> Self {
+        Self { seed: 1234567890 }
+    }
+}
+
+pub struct StratifiedSamplerSettings {
+    pub seed: u64,
+    pub xsamples: u32,
+    pub ysamples: u32,
+    pub jitter: bool,
+}
+
+impl Default for StratifiedSamplerSettings {
+    fn default() -> Self {
+        Self { seed: 1234567890, jitter: true, xsamples: 4, ysamples: 4 }
+    }
+}
+
+pub enum Sampler {
+    Random(RandomSamplerSettings),
+    Stratified(StratifiedSamplerSettings)
+}
+
+impl Sampler {
+    pub fn create_sampler(&self) -> Box<dyn SamplerInterface> {
+        match self {
+            Sampler::Random(settings) => Box::new(RandomPathSampler::new(settings.seed)),
+            Sampler::Stratified(st) => {
+                Box::new(StratifiedPathSampler::new(st.seed, st.xsamples, st.ysamples, st.jitter))
+            }
+        }
+    }
 }
 
 pub struct Settings {
@@ -39,7 +94,7 @@ impl Default for Settings {
         Self {
             resolution: ImageSize::new(256, 256),
             spp: 1,
-            rendering_algorithm: RenderingAlgorithm::AmbientOcclusion(AmbientOcclusionSettings::default()),
+            rendering_algorithm: RenderingAlgorithm::AmbientOcclusion(AmbientOcclusionProperties::default()),
             tonemap: TMOType::Linear,
             output_fname: "output.png".to_string(),
             nthreads: 1
@@ -48,6 +103,7 @@ impl Default for Settings {
 }
 
 pub struct SceneDescription {
+    pub sampler: Option<Sampler>,
     pub settings: Settings,
     pub camera_desc: PerspectiveCameraDescriptor,
     pub materials: Vec<MaterialDescription>,
@@ -60,11 +116,19 @@ impl SceneDescription {
         self.settings.resolution = resolution;
         self.camera_desc.resolution = resolution;
     }
+
+    pub fn create_sampler(&self) -> Box<dyn SamplerInterface> {
+        match &self.sampler {
+            Some(sampler) => sampler.create_sampler(),
+            _ => Box::new(RandomPathSampler::new(1234567890))
+        }
+    }
 }
 
 impl Default for SceneDescription {
     fn default() -> Self {
         Self {
+            sampler: None,
             settings: Settings::default(),
             camera_desc: PerspectiveCameraDescriptor::default(),
             materials: Vec::new(),
@@ -80,7 +144,8 @@ pub struct Scene {
     pub camera: PerspectiveCamera,
     pub materials: Vec<Box<dyn BSDFInterface>>,
     pub geometry: Geometry,
-    pub lights: Vec<Box<dyn LightInterface>>
+    pub lights: Vec<Box<dyn LightInterface>>,
+    pub sampler: Sampler,
 }
 
 impl From<SceneDescription> for Scene {
@@ -101,12 +166,14 @@ impl From<SceneDescription> for Scene {
             let light = light_desc.create();
             lights.push(light);
         }
+        let sampler = desc.sampler.unwrap_or(Sampler::Random(RandomSamplerSettings::default()));
         Self {
             settings: desc.settings,
             camera: desc.camera_desc.create(),
             materials,
             geometry,
-            lights
+            lights,
+            sampler
         }
     }
 }

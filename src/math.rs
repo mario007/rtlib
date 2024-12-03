@@ -69,7 +69,7 @@ pub fn permutation_element(index: u32, n: u32, seed: u32) -> u32 {
         i = i.wrapping_mul(0x0929eb3f);
         i ^= seed >> 23;
         i ^= (i & w) >> 1;
-        i *= 1 | seed >> 27;
+        i = i.wrapping_mul(1 | seed >> 27);
         i = i.wrapping_mul(0x6935fa69);
         i ^= (i & w) >> 11;
         i = i.wrapping_mul(0x74dcb303);

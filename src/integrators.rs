@@ -9,27 +9,30 @@ use crate::vec::Point3;
 use crate::tile::Tile;
 use crate::ray::{Ray, spawn_new_ray};
 use crate::scene::RenderingAlgorithm;
-use crate::scene::AmbientOcclusionSettings;
+use crate::scene::AmbientOcclusionProperties;
 use crate::samplings::{sample_cos_hemisphere, sample_uniform_hemisphere};
+use crate::samplers::SamplerInterface;
 
-
-pub fn ambient_occlusion_integrator(scene: &Scene, ao_settings: &AmbientOcclusionSettings) -> RGB8uffer {
+// AO(p) = 1/pi * integral_{w} V(p, w) * dot(n, w) dw
+pub fn ambient_occlusion_integrator(scene: &Scene, ao_settings: &AmbientOcclusionProperties) -> RGB8uffer {
     let spp = scene.settings.spp;
     let resolution = scene.settings.resolution;
     let camera = &scene.camera;
     let geometry = &scene.geometry;
-    let mut rng = PCGRng::new(15236, 31337);
     let tile = Tile::new(0, 0, resolution.width, resolution.height);
     let mut accum = AccumlationBuffer::<RGBPixelSample>::new(tile);
     let cossample = ao_settings.cossample;
     let maxdistance = ao_settings.maxdistance;
+    let mut sampler = scene.sampler.create_sampler();
+    sampler.initialize(&tile, 0);
 
-    for _ in 0..spp {
+    for i in 0..spp {
         for (x, y) in tile {
-            let px = x as f32 + rng.rand_f32();
-            let py = y as f32 + rng.rand_f32();
+            let (sx, sy) = sampler.sample_pixel(x, y, i);
+            let px = x as f32 + sx;
+            let py = y as f32 + sy;
             let ray = camera.generate_ray(px, py);
-            let rgb = ambient_occlusion(&ray, geometry, &mut rng, cossample, maxdistance);
+            let rgb = ambient_occlusion(&ray, geometry, &mut sampler, cossample, maxdistance);
             let sample = RGBPixelSample::new(rgb, 1.0);
             
             accum.add(x, y, &sample);
@@ -38,7 +41,7 @@ pub fn ambient_occlusion_integrator(scene: &Scene, ao_settings: &AmbientOcclusio
     accum.to_rgb8_buffer(&scene.settings.tonemap)
 }
 
-pub fn ambient_occlusion(ray: &Ray, shapes: &Geometry, rng: &mut PCGRng,
+pub fn ambient_occlusion(ray: &Ray, shapes: &Geometry, sampler: &mut Box<dyn SamplerInterface>,
                          cossample: bool, maxdistance: f32) -> RGB {
     
     let result = shapes.intersect(ray);
@@ -47,10 +50,11 @@ pub fn ambient_occlusion(ray: &Ray, shapes: &Geometry, rng: &mut PCGRng,
         None => return RGB::new(1.0, 1.0, 1.0)
     };
 
+    let (u, v) = sampler.next_2d();
     let sample_dir = if cossample {
-        sample_cos_hemisphere(rng.rand_f32(), rng.rand_f32())
+        sample_cos_hemisphere(u, v)
     } else {
-        sample_uniform_hemisphere(rng.rand_f32(), rng.rand_f32())
+        sample_uniform_hemisphere(u, v)
     };
     if sample_dir.pdfw == 0.0 {
         return RGB::zero();
@@ -104,16 +108,18 @@ pub fn direct_lgt_integrator(scene: &Scene) -> RGB8uffer {
     let spp = scene.settings.spp;
     let resolution = scene.settings.resolution;
     let camera = &scene.camera;
-    let mut rng = PCGRng::new(15236, 31337);
     let tile = Tile::new(0, 0, resolution.width, resolution.height);
     let mut accum = AccumlationBuffer::<RGBPixelSample>::new(tile);
+    let mut sampler = scene.sampler.create_sampler();
+    sampler.initialize(&tile, 0);
 
-    for _ in 0..spp {
+    for i in 0..spp {
         for (x, y) in tile {
-            let px = x as f32 + rng.rand_f32();
-            let py = y as f32 + rng.rand_f32();
+            let (sx, sy) = sampler.sample_pixel(x, y, i);
+            let px = x as f32 + sx;
+            let py = y as f32 + sy;
             let ray = camera.generate_ray(px, py);
-            let rgb = radiance_direct_lgt(&ray, scene, &mut rng);
+            let rgb = radiance_direct_lgt(&ray, scene, &mut sampler);
             let sample = RGBPixelSample::new(rgb, 1.0);
             
             accum.add(x, y, &sample);
@@ -122,7 +128,7 @@ pub fn direct_lgt_integrator(scene: &Scene) -> RGB8uffer {
     accum.to_rgb8_buffer(&scene.settings.tonemap)
 }
 
-pub fn radiance_direct_lgt (ray: &Ray, scene: &Scene, rng: &mut PCGRng) -> RGB {
+pub fn radiance_direct_lgt (ray: &Ray, scene: &Scene, _sampler: &mut Box<dyn SamplerInterface>) -> RGB {
     let isect_p = match scene.geometry.intersect(ray) {
         Some(isect_p) => isect_p,
         None => return RGB::zero()
@@ -132,7 +138,7 @@ pub fn radiance_direct_lgt (ray: &Ray, scene: &Scene, rng: &mut PCGRng) -> RGB {
     let mut acum = RGB::zero();
 
     for light in scene.lights.iter() {
-        let ls = light.illuminate(isect_p.hit_point, rng);
+        let ls = light.illuminate(isect_p.hit_point);
         let ls = match ls {
             Some(ls) => ls,
             None => continue
@@ -187,6 +193,7 @@ mod tests {
         // let path = "D://rtlib_scenes//sphere//sphere.pbrt";
         // let path = "D://rtlib_scenes//spheres//spheres.pbrt";
         // let path = "D://rtlib_scenes//spheres_trans//spheres.pbrt";
+        // let path = "D://rtlib_scenes//cornell//scene-v4.pbrt";
         // let scene_descripton = parse_pbrt_v4_input_file(path);
 
         let scene_description = match scene_descripton {    

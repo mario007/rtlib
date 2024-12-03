@@ -84,10 +84,16 @@ mod tests {
 
     use super::*;
     use crate::rng::{PCGRng, Rng};
+    use crate::samplers::{RandomPathSampler, SamplerInterface, StratifiedPathSampler};
+    use crate::tile::Tile;
 
     #[test]
     fn sampling_pixels() {
         let mut rng = PCGRng::new(0xf12456955, 0x454555);
+        let mut path_sampler = RandomPathSampler::new(0xf12456955);
+        let mut path_sampler = StratifiedPathSampler::new(0xf12456955, 16, 16, false);
+        let tile = Tile::new(0, 0, 3, 3);
+        path_sampler.initialize(&tile, 0);
         
         let color = RGB8{red:0, green:0, blue:255};
         let pixel_size = 256;
@@ -108,11 +114,15 @@ mod tests {
         }
         let samples_per_pixel = 256;
         let red = RGB8{red:255, green:0, blue:0};
-        for _s in 0..samples_per_pixel {
+        for s in 0..samples_per_pixel {
             for i in 0..width {
                 for j in 0..height {
-                    let px = rng.rand_range(pixel_size as u32) as usize;
-                    let py = rng.rand_range(pixel_size as u32) as usize;
+                    let (px, py) = path_sampler.sample_pixel(i, j, s);
+                    let (px, py) = path_sampler.next_2d();
+                    let px = (px * pixel_size as f32) as usize;
+                    let py = (py * pixel_size as f32) as usize;
+                    // let px = rng.rand_range(pixel_size as u32) as usize;
+                    // let py = rng.rand_range(pixel_size as u32) as usize;
                     col_buffer.set(i * pixel_size + px, j * pixel_size + py, &red);
                 }
             }

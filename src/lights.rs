@@ -1,5 +1,4 @@
 use crate::vec::Point3;
-use crate::rng::PCGRng;
 use crate::color::RGB;
 use crate::vec::Vec3;
 
@@ -12,7 +11,7 @@ pub struct LightSample {
 }
 
 pub trait LightInterface {
-    fn illuminate(&self, hit: Point3, rng: &mut PCGRng) -> Option<LightSample>;
+    fn illuminate(&self, hit: Point3) -> Option<LightSample>;
     fn is_delta_light(&self) -> bool;
     fn is_area_light(&self) -> bool {
         false
@@ -31,7 +30,7 @@ impl PointLight {
 }
 
 impl LightInterface for PointLight {
-    fn illuminate(&self, hit: Point3, _rng: &mut PCGRng) -> Option<LightSample> {
+    fn illuminate(&self, hit: Point3) -> Option<LightSample> {
         let direction_to_light = self.position - hit;
         let wi = direction_to_light.normalize();
         let intensity = self.intensity * direction_to_light.length_sqr().recip();

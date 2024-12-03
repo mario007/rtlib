@@ -25,6 +25,7 @@ pub mod scene;
 pub mod pbrt_v4_tokenizer;
 pub mod pbrt_v4;
 pub mod integrators;
+pub mod samplers;
 
 pub use crate::color::{RGBPixelSample, AccumlationBuffer};
 pub use crate::rgb::ImageSize;
