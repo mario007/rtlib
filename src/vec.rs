@@ -173,6 +173,24 @@ impl Index<usize> for Vec3 {
 
 /// A 3-dimensional point.
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Represents a point in two-dimensional space.
+pub struct Point2 {
+    /// The x coordinate of the point.
+    pub x: f32,
+    /// The y coordinate of the point.
+    pub y: f32,
+}
+
+impl Point2 {
+    /// Create a new 2D point.
+    #[inline(always)]
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+}
+
+/// A 3-dimensional point.
+#[derive(Debug, Clone, Copy, PartialEq)]
 /// Represents a point in three-dimensional space.
 pub struct Point3 {
     /// The x coordinate of the point.

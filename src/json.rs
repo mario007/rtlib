@@ -7,7 +7,7 @@ use crate::rgb::ImageSize;
 use crate::color::{TMOType, RGB};
 use crate::vec::{Point3, Vec3};
 use crate::materials::{MaterialDescription, MaterialType};
-use crate::shapes::{ShapeDescription, ShapeType};
+use crate::shapes::{ShapeDescription, SphereDescription};
 use crate::lights::{LightDescription, LightType};
 use crate::scene::{SceneDescription, RenderingAlgorithm};
 use crate::transformations::Transformation;
@@ -285,7 +285,7 @@ fn parse_shape(section: &Value) -> Result<ShapeDescription, Box<dyn Error>> {
 }
 
 fn parse_sphere_shape(section: &Value) -> Result<ShapeDescription, Box<dyn Error>> {
-    let mut desc = ShapeDescription::default();
+    let mut desc = SphereDescription::default();
     let material = parse_string(&section["material"], "shape->material")?;
     if !section["position"].is_null() {
         let position = parse_point3(&section["position"], "shape->position")?;
@@ -293,14 +293,13 @@ fn parse_sphere_shape(section: &Value) -> Result<ShapeDescription, Box<dyn Error
     }
     let radius = parse_f32(&section["radius"], "shape->radius")?;
     
-    desc.typ = ShapeType::Sphere;
     desc.material = material;
     desc.radius = radius;
     if !section["transformations"].is_null() {
         let transform = parse_transformations(&section["transformations"])?;
         desc.transform = Some(transform);
     }
-    Ok(desc)
+    Ok(ShapeDescription::Sphere(desc))
 }
 
 fn parse_transformations(section: &Value) -> Result<Transformation, Box<dyn Error>> {

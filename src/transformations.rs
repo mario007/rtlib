@@ -81,6 +81,7 @@ impl Transformation {
         Self { mat, inv_mat }
     }
 
+    // Note: Returns world to camera transformation
     pub fn look_at(pos: Point3, look: Point3, up: Vec3) -> Self {
         let dir = (look - pos).normalize();
         if up.normalize().cross(dir).length() == 0.0 {
@@ -99,7 +100,7 @@ impl Transformation {
         if inv_mat.is_none() {
             panic!("Matrix {:?} is not invertible.", mat);
         }
-        Self { mat, inv_mat: inv_mat.unwrap() }
+        Self { mat: inv_mat.unwrap(), inv_mat: mat }
     }
 
     pub fn orthographic(z_near: f32, z_far: f32) -> Self {

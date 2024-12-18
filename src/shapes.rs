@@ -1,4 +1,4 @@
-use crate::vec::{Point3, Normal, Vec3};
+use crate::vec::{Point3, Normal, Vec3, Point2};
 use crate::transformations::Transformation;
 use crate::ray::Ray;
 use std::ops::Mul;
@@ -340,7 +340,7 @@ impl Triangles {
         let isect_fn = |idx: usize, ray: &Ray| {
             let triangle = &self.triangles[idx];
             let mesh = &self.meshes[triangle.mesh_id as usize];
-            mesh.intersect(triangle.triangle_id as usize, ray, 0.0)
+            mesh.intersect(triangle.triangle_id as usize, ray, 0.000001)
         };
         self.linear_intersector.intersect(ray, &isect_fn)
     }
@@ -369,7 +369,7 @@ pub struct SurfaceInteraction {
     pub hit_point: Point3,
     pub normal: Normal,
     pub material_id: u32,
-    pub back_face: bool,
+    pub back_side: bool,
 }
 
 impl Geometry {
@@ -421,41 +421,40 @@ impl Geometry {
             GeometryIntersection::Sphere(shape_intersection) => {
                 let hit_point = ray.point_at(shape_intersection.t);
                 let mut normal = self.spheres.normal(ray, shape_intersection);
-                let mut back_face = false;
+                let mut back_side = false;
                 if (-ray.direction) * normal < 0.0 {
                     normal = -normal;
-                    back_face = true;
+                    back_side = true;
                 }
                 let material_id = self.spheres.material(shape_intersection);
-                Some(SurfaceInteraction { t: shape_intersection.t, hit_point, normal, material_id, back_face })
+                Some(SurfaceInteraction { t: shape_intersection.t, hit_point, normal, material_id, back_side })
             }
             GeometryIntersection::Triangle(shape_intersection) => {
                 let hit_point = ray.point_at(shape_intersection.t);
                 let mut normal = self.triangles.normal(ray, shape_intersection);
-                let mut back_face = false;
+                let mut back_side = false;
                 if (-ray.direction) * normal < 0.0 {
                     normal = -normal;
-                    back_face = true;
+                    back_side = true;
                 }
                 let material_id = self.triangles.material(shape_intersection);
-                Some(SurfaceInteraction { t: shape_intersection.t, hit_point, normal, material_id, back_face })
+                Some(SurfaceInteraction { t: shape_intersection.t, hit_point, normal, material_id, back_side })
             }
             GeometryIntersection::None => None
         }
     }
 
-    pub fn from_shape_descriptions(descs: &[ShapeDescription], mat_names: &HashMap<String, usize>) -> Self {
+    pub fn from_shape_descriptions(descs: &mut [ShapeDescription], mat_names: &HashMap<String, usize>) -> Self {
         let mut geometry = Self::new();
-        for desc in descs.iter() {
-            let material_id = mat_names[&desc.material] as u32;
-            match desc.typ {
-                ShapeType::Sphere => {
-                    let sphere = Sphere::new(desc.position, desc.radius);
-                    geometry.add_sphere(sphere, desc.transform, material_id);
+        for desc in descs.iter_mut() {
+            match desc {
+                ShapeDescription::Sphere(desc) => {
+                    geometry.add_sphere(Sphere::new(desc.position, desc.radius), desc.transform, mat_names[&desc.material] as u32);
                 }
-                ShapeType::Mesh => {
-                    panic!("Meshes are not supported yet");
-                    // geometry.add_mesh(Mesh::from((desc.vertices, desc.indices)), None, material_id);
+                ShapeDescription::Mesh(desc) => {
+                    let vertices = desc.vertices.take().unwrap_or(Vec::new());
+                    let indices = desc.indices.take().unwrap_or(Vec::new());
+                    geometry.add_mesh(Mesh::from((vertices, indices)), desc.transform, mat_names[&desc.material] as u32);
                 }
             }
         }
@@ -469,6 +468,52 @@ impl Default for Geometry {
         Self::new()
     }
 }
+
+pub struct SphereDescription {
+    pub position: Point3,
+    pub radius: f32,
+    pub material: String,
+    pub transform: Option<Transformation>
+}
+
+impl Default for SphereDescription {
+    fn default() -> Self {
+        Self {
+            position: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            material: String::new(),
+            transform: None
+        }
+    }
+}
+
+pub struct MeshDescription {
+    pub vertices: Option<Vec<Point3>>,
+    pub indices: Option<Vec<u32>>,
+    pub normals: Option<Vec<Normal>>,
+    pub uvs: Option<Vec<Point2>>,
+    pub material: String,
+    pub transform: Option<Transformation>
+}
+
+impl Default for MeshDescription {
+    fn default() -> Self {
+        Self {
+            vertices: None,
+            indices: None,
+            normals: None,
+            uvs: None,
+            material: String::new(),
+            transform: None
+        }
+    }
+}
+
+pub enum ShapeDescription {
+    Sphere(SphereDescription),
+    Mesh(MeshDescription)
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -502,27 +547,3 @@ mod tests {
     }
 }
 
-pub enum ShapeType {
-    Sphere,
-    Mesh
-}
-
-pub struct ShapeDescription {
-    pub typ: ShapeType,
-    pub material: String,
-    pub position: Point3,
-    pub radius: f32,
-    pub transform: Option<Transformation>
-}
-
-impl Default for ShapeDescription {
-    fn default() -> Self {
-        Self {
-            typ: ShapeType::Sphere,
-            material: String::new(),
-            position: Point3::new(0.0, 0.0, 0.0),
-            radius: 0.0,
-            transform: None
-        }
-    }
-}

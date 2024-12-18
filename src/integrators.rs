@@ -1,6 +1,5 @@
-use crate::rng::{PCGRng, Rng};
 use crate::vec::{Vec3, Normal};
-use crate::color::{RGB, RGBPixelSample, AccumlationBuffer};
+use crate::color::{RGB, AccumlationBuffer, PixelSample, AccumlationTileBuffer};
 use crate::shapes::Geometry;
 use crate::frame::Frame;
 use crate::scene::Scene;
@@ -12,6 +11,8 @@ use crate::scene::RenderingAlgorithm;
 use crate::scene::AmbientOcclusionProperties;
 use crate::samplings::{sample_cos_hemisphere, sample_uniform_hemisphere};
 use crate::samplers::SamplerInterface;
+use crate::scene::RandomWalkProperties;
+use crate::samplings::sample_uniform_sphere;
 
 // AO(p) = 1/pi * integral_{w} V(p, w) * dot(n, w) dw
 pub fn ambient_occlusion_integrator(scene: &Scene, ao_settings: &AmbientOcclusionProperties) -> RGB8uffer {
@@ -20,7 +21,7 @@ pub fn ambient_occlusion_integrator(scene: &Scene, ao_settings: &AmbientOcclusio
     let camera = &scene.camera;
     let geometry = &scene.geometry;
     let tile = Tile::new(0, 0, resolution.width, resolution.height);
-    let mut accum = AccumlationBuffer::<RGBPixelSample>::new(tile);
+    let mut accum = AccumlationBuffer::<PixelSample<RGB>>::new(tile.size());
     let cossample = ao_settings.cossample;
     let maxdistance = ao_settings.maxdistance;
     let mut sampler = scene.sampler.create_sampler();
@@ -33,9 +34,7 @@ pub fn ambient_occlusion_integrator(scene: &Scene, ao_settings: &AmbientOcclusio
             let py = y as f32 + sy;
             let ray = camera.generate_ray(px, py);
             let rgb = ambient_occlusion(&ray, geometry, &mut sampler, cossample, maxdistance);
-            let sample = RGBPixelSample::new(rgb, 1.0);
-            
-            accum.add(x, y, &sample);
+            accum.add(x, y, &rgb);
         } 
     }
     accum.to_rgb8_buffer(&scene.settings.tonemap)
@@ -109,7 +108,7 @@ pub fn direct_lgt_integrator(scene: &Scene) -> RGB8uffer {
     let resolution = scene.settings.resolution;
     let camera = &scene.camera;
     let tile = Tile::new(0, 0, resolution.width, resolution.height);
-    let mut accum = AccumlationBuffer::<RGBPixelSample>::new(tile);
+    let mut accum = AccumlationBuffer::<PixelSample<RGB>>::new(tile.size());
     let mut sampler = scene.sampler.create_sampler();
     sampler.initialize(&tile, 0);
 
@@ -120,9 +119,12 @@ pub fn direct_lgt_integrator(scene: &Scene) -> RGB8uffer {
             let py = y as f32 + sy;
             let ray = camera.generate_ray(px, py);
             let rgb = radiance_direct_lgt(&ray, scene, &mut sampler);
-            let sample = RGBPixelSample::new(rgb, 1.0);
-            
-            accum.add(x, y, &sample);
+            if x == 512 && y == 0 {
+                println!("rgb: {:?}", rgb);
+                let bb = rgb;
+                println!("bb: {:?}", bb);
+            }
+            accum.add(x, y, &rgb);
         } 
     }
     accum.to_rgb8_buffer(&scene.settings.tonemap)
@@ -153,13 +155,81 @@ pub fn radiance_direct_lgt (ray: &Ray, scene: &Scene, _sampler: &mut Box<dyn Sam
             let cosa = (ls.wi * isect_p.normal).abs();
             let dist = isect_p.hit_point.distance(ls.position);
             let pdf = pdfa_to_w(ls.pdfa, dist, ls.cos_theta);
-            if ls.wi * isect_p.normal > 0.0 && wo * isect_p.normal > 0.0 {
-                acum = acum + (mat_spectrum * ls.intensity) * (cosa / pdf);
-            }
+            acum += (mat_spectrum * ls.intensity) * (cosa / pdf);
         }
     }
     acum
 }
+
+pub fn random_walk_integrator(scene: &Scene, rw_settings: &RandomWalkProperties) -> RGB8uffer {
+    let spp = scene.settings.spp;
+    let resolution = scene.settings.resolution;
+    let camera = &scene.camera;
+    let tile = Tile::new(0, 0, resolution.width, resolution.height);
+    let mut accum = AccumlationBuffer::<PixelSample<RGB>>::new(tile.size());
+    let filter_radius = match &scene.filter {
+        Some(filter) => Some(filter.max_radius()),
+        None => None
+    };
+    let mut tile_buffer = AccumlationTileBuffer::<PixelSample<RGB>>::new(tile, filter_radius, resolution.width, resolution.height);
+    let maxdepth = rw_settings.maxdepth;
+    let mut sampler = scene.sampler.create_sampler();
+    sampler.initialize(&tile, 0);
+
+    let calc_weight = |x: f32, y: f32| -> f32 {
+       match &scene.filter {
+        Some(filter) => filter.evaluate(x, y),
+        None => 1.0
+       }
+    };
+
+    for i in 0..spp {
+        for (x, y) in tile {
+            let (sx, sy) = sampler.sample_pixel(x, y, i);
+            let px = x as f32 + sx;
+            let py = y as f32 + sy;
+            let ray = camera.generate_ray(px, py);
+            let rgb = random_walk(&ray, scene, &mut sampler, 0, maxdepth);
+            // accum.add(x, y, &rgb);
+            tile_buffer.add(x, y, px, py, &rgb, &calc_weight);
+        } 
+    }
+    accum.add_accumulation_tile_buffer(&tile_buffer);
+    accum.to_rgb8_buffer(&scene.settings.tonemap)
+}
+
+fn random_walk(ray: &Ray, scene: &Scene, sampler: &mut Box<dyn SamplerInterface>, depth: usize, maxdepth: usize) -> RGB {
+    // TODO: return radiance from inifinite light sources
+    let isect_p = match scene.geometry.intersect(ray) {
+        Some(isect_p) => isect_p,
+        None => return RGB::zero()
+    };
+
+    let material = &scene.materials[isect_p.material_id as usize];
+    let wo = -ray.direction;
+    let le = material.emssion(wo, isect_p.normal, isect_p.back_side);
+
+    if depth == maxdepth {
+        return le;
+    }
+
+    let (u1, u2) = sampler.next_2d();
+    let sample_dist = sample_uniform_sphere(u1, u2);
+
+    let wi = Frame::from(isect_p.normal).to_world(sample_dist.direction).normalize();
+    let res = material.eval(wo, isect_p.normal, wi);
+
+    let fcos = match res {
+        Some(res) => {
+            res.color * (isect_p.normal * wi).abs()
+        }
+        None => { return le; }
+    };
+
+    let new_ray = spawn_new_ray(isect_p.hit_point, isect_p.normal, wi);
+    le + fcos * random_walk(&new_ray, scene, sampler, depth + 1, maxdepth) * sample_dist.pdfw.recip()
+}
+
 
 fn render_scene(scene: &Scene) -> RGB8uffer {
     match scene.settings.rendering_algorithm {
@@ -168,6 +238,9 @@ fn render_scene(scene: &Scene) -> RGB8uffer {
         }
         RenderingAlgorithm::DirectLighting => {
             direct_lgt_integrator(scene)
+        }
+        RenderingAlgorithm::RandomWalk(rw_settings) => {
+            random_walk_integrator(scene, &rw_settings)
         }
         _ => {
             panic!("Unsupported algorithm");
@@ -185,9 +258,9 @@ mod tests {
 
     #[test]
     fn test_render_scene() {
-        let path = "D://rtlib_scenes//sphere//sphere.json";
+        // let path = "D://rtlib_scenes//sphere//sphere.json";
         // let path = "D://rtlib_scenes//spheres//spheres.json";
-        // let path = "D://rtlib_scenes//spheres_trans//spheres.json";
+        let path = "D://rtlib_scenes//spheres_trans//spheres.json";
         let scene_descripton = load_scene_description_from_json(path);
 
         // let path = "D://rtlib_scenes//sphere//sphere.pbrt";

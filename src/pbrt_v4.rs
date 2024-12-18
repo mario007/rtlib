@@ -1,7 +1,6 @@
 use crate::color::RGB;
-use crate::vec::{Point3, Vec3};
+use crate::vec::{Point3, Vec3, Normal, Point2};
 use std::path::PathBuf;
-use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use std::path::Path;
@@ -18,33 +17,26 @@ use crate::materials::MaterialType;
 use crate::lights::LightDescription;
 use crate::lights::LightType;
 use crate::shapes::ShapeDescription;
-use crate::shapes::ShapeType;
 use crate::scene::{AmbientOcclusionProperties, RandomWalkProperties};
 use crate::matrix::Matrix4x4;
 use crate::scene::{Sampler, RandomSamplerSettings, StratifiedSamplerSettings};
+use crate::shapes::{MeshDescription, SphereDescription};
+use crate::filter::{FilterDescriptor, FilterType};
 
-struct AreaLightInfo {
-    radiance: RGB,
-    type_name: String,
-}
 
 struct ParseState {
     transformations: Vec<Transformation>,
-    general_section: bool,
     materials: Vec<String>,
-    area_lights_infos: Vec<AreaLightInfo>,
-    named_materials: Vec<HashMap<String, u32>>,
+    area_lights: Vec<String>,
     current_path: PathBuf,
     directives: HashSet<&'static str>,
 }
 
 impl ParseState {
     pub fn new() -> Self {
-        let transformations = vec![Transformation::default()];
+        let transformations = vec![Transformation::identity()];
         let materials = Vec::new();
-        let info = AreaLightInfo{type_name: "".to_string(), radiance: RGB::zero()};
-        let area_lights_infos = vec![info];
-        let named_materials = vec![HashMap::new()];
+        let area_lights = Vec::new();
         let current_path = PathBuf::new();
         let directives: HashSet<_> = vec!["LookAt", "Camera", "Sampler", "Integrator", "Film", "PixelFilter",
         "WorldBegin", "AttributeBegin", "AttributeEnd", "LightSource", "AreaLightSource", "Texture",
@@ -52,10 +44,8 @@ impl ParseState {
         "Scale", "Translate", "Rotate", "Identity", "Transform", "ConcatTransform"].into_iter().collect();
         Self {
             transformations,
-            general_section: true,
             materials,
-            area_lights_infos,
-            named_materials,
+            area_lights,
             current_path,
             directives
         }
@@ -64,13 +54,15 @@ impl ParseState {
     pub fn push_state(&mut self) {
         self.transformations.push(self.current_transformation());
         self.materials.push(self.current_material());
-        let info = AreaLightInfo{type_name: "".to_string(), radiance: RGB::zero()};
-        self.area_lights_infos.push(info);
+        if !self.area_lights.is_empty() {
+            self.area_lights.push(self.area_lights.last().expect("No area light exist!").clone());
+        }
+    }
 
-        // TODO - copy on write approach for performances reasons
-        let index = self.named_materials.len() - 1;
-        let map = self.named_materials[index].clone();
-        self.named_materials.push(map);
+    pub fn pop_state(&mut self) {
+        self.transformations.pop();
+        self.materials.pop();
+        self.area_lights.pop();
     }
 
     pub fn current_transformation(&self) -> Transformation {
@@ -78,21 +70,10 @@ impl ParseState {
     }
 
     pub fn current_material(&self) -> String {
-        //self.materials_ids[self.materials_ids.len() - 1]
         self.materials.last().expect("No material exist!").clone()
     }
 
-    pub fn cur_area_light_type(&self) -> &str {
-        &self.area_lights_infos[self.area_lights_infos.len() - 1].type_name
-    }
-
-    pub fn cur_area_light_radiance(&self) -> RGB {
-        self.area_lights_infos[self.area_lights_infos.len() - 1].radiance
-    }
-
     pub fn set_transformation(&mut self, transformation: Transformation) {
-        //let index = self.matrices.len() - 1;
-        //self.matrices[index] = matrix;
         if let Some(last) = self.transformations.last_mut() {
             *last = transformation;
         }
@@ -107,34 +88,13 @@ impl ParseState {
         }
     }
 
-    pub fn set_area_light_info(&mut self, type_name: String, radiance: RGB) {
-        let index = self.area_lights_infos.len() - 1;
-        self.area_lights_infos[index].type_name = type_name;
-        self.area_lights_infos[index].radiance = radiance;
-    }
-
-    pub fn pop_state(&mut self) {
-        self.transformations.pop();
-        self.materials.pop();
-        self.area_lights_infos.pop();
-        self.named_materials.pop();
-    }
-
-    pub fn set_in_general_section(&mut self, value: bool) {
-        self.general_section = value;
-    }
-
-    pub fn add_named_material(&mut self, name: String, material_id: u32) {
-        let index = self.named_materials.len() - 1;
-        let map = &mut self.named_materials[index];
-        // Todo - logger - if material allready exist it will be redefined
-        map.insert(name, material_id);
-    }
-
-    pub fn get_named_material(&self, name: &str) -> u32 {
-        let index = self.named_materials.len() - 1;
-        let map = &self.named_materials[index];
-        *map.get(name).unwrap_or_else(|| panic!("Material {} doesn't exist!", name))
+    pub fn set_area_light(&mut self, material: String) {
+        if self.area_lights.is_empty() {
+            self.area_lights.push(material);
+        } else {
+            let index = self.area_lights.len() - 1;
+            self.area_lights[index] = material;
+        }
     }
 
     pub fn is_directive(&self, directive: &str) -> bool {
@@ -167,17 +127,17 @@ fn parse_input_string(text: &str, scene: &mut SceneDescription, state: &mut Pars
             "Integrator" => process_integrator(&mut ct, scene, state)?,
             "Film" => process_film(&mut ct, scene, state)?,
             "Sampler" => process_sampler(&mut ct, scene, state)?,
-            // "PixelFilter" => process_pixel_filter(tokens, scene, state)?,
+            "PixelFilter" => process_filter(&mut ct, scene, state)?,
             "WorldBegin" => process_world_begin(&mut ct, scene, state)?,
-            // "AttributeBegin" => process_attribute_begin(tokens, scene, state)?,
-            // "AttributeEnd" => process_attribute_end(tokens, scene, state)?,
+            "AttributeBegin" => process_attribute_begin(&mut ct, scene, state)?,
+            "AttributeEnd" => process_attribute_end(&mut ct, scene, state)?,
             "LightSource" => process_light(&mut ct, scene, state)?,
-            // "AreaLightSource" => process_area_light_source(tokens, scene, state)?,
+            "AreaLightSource" => process_area_light_source(&mut ct, scene, state)?,
             // "Texture" => process_texture(tokens, scene, state)?,
             "Material" => process_material(&mut ct, scene, state)?,
             "Shape" => process_shape(&mut ct, scene, state)?,
-            // "MakeNamedMaterial" => process_make_named_material(tokens, scene, state)?,
-            // "NamedMaterial" => process_named_material(tokens, scene, state)?,
+            "MakeNamedMaterial" => process_make_named_material(&mut ct, scene, state)?,
+            "NamedMaterial" => process_named_material(&mut ct, scene, state)?,
             // "Accelerator" => process_accelerator(tokens, scene, state)?,
             "Scale" => process_scale_transform(&mut ct, scene, state)?,
             "Translate" => process_translate_transform(&mut ct, scene, state)?,
@@ -248,7 +208,7 @@ fn process_scale_transform(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDesc
 fn process_transform(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
     state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
 
-    let values = parse_f32x3_values(tokenizer, "Transform: ")?;
+    let values = parse_f32_array(tokenizer, "Transform: ")?;
     if values.len() != 16 {
         return Err("Transform: Exactly 16 values expected!".to_string().into())
     }
@@ -266,7 +226,7 @@ fn process_transform(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescriptio
 fn process_concat_transform(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
     state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
 
-    let values = parse_f32x3_values(tokenizer, "ConcatTransform: ")?;
+    let values = parse_f32_array(tokenizer, "ConcatTransform: ")?;
     if values.len() != 16 {
         return Err("ConcatTransform: Exactly 16 values expected!".to_string().into())
     }
@@ -321,7 +281,7 @@ fn process_perspective_camera(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDe
 
     };
     scene.camera_desc.fov = fov;
-    scene.camera_desc.camera_to_world = Some(state.current_transformation());
+    scene.camera_desc.camera_to_world = Some(state.current_transformation().inverse());
     Ok(result)
 }
 
@@ -372,7 +332,7 @@ fn randomwalk_integrator(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescrip
 
     let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
         match token {
-            "integer maxdepth" => settings.maxdepth = extract_value(tokenizer, "Ambientocclusion::cossample - ")?,
+            "integer maxdepth" => settings.maxdepth = extract_value(tokenizer, "Randomwalk::maxdepth - ")?,
             _ => return Err(format!("Unsupported parameter in random walk integrator: {}", token).into())
         }
         Ok(())
@@ -499,7 +459,6 @@ fn process_stratified_sampler(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDe
     Ok(result)
 }
 
-
 fn process_halton_sampler(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
                               state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
 
@@ -521,20 +480,101 @@ fn process_halton_sampler(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescri
     Ok(result)
 }
 
-fn process_material(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
-                      state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
-    let token = match tokenizer.next() {
+fn process_filter(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
+                  state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+
+    let filter_type = match tokenizer.next() {
         Some(token) => token.trim(),
-        None => return Err("Material: Type of material not specified!".into())
+        None => return Err("Missing filter type token!".to_string().into())
     };
-    match token {
-        "diffuse" => process_diffuse_material(tokenizer, scene, state),
-        _=> Err(format!("Unsupported material type {}", token).into())
+
+    match filter_type {
+        "box" => process_filter_data(tokenizer, scene, state, FilterType::Box),
+        "gaussian" => process_filter_data(tokenizer, scene, state, FilterType::Gaussian),
+        "mitchell" => process_filter_data(tokenizer, scene, state, FilterType::Mitchell),
+        "sinc" => process_filter_data(tokenizer, scene, state, FilterType::LanczosSinc),
+        "triangle" => process_filter_data(tokenizer, scene, state, FilterType::Triangle),
+        _ => Err(format!("Sampler: Unsupported filter type - {}", filter_type).into())
     }
 }
 
+fn process_filter_data(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
+                       state: &mut ParseState, filter_type: FilterType) -> Result<Option<String>, Box<dyn Error>> {
+
+    let mut desc = FilterDescriptor::default();
+    desc.filter_type = filter_type;
+    desc.set_default_radius();
+
+    let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
+        match token {
+            "float xradius" => desc.xradius = extract_value(tokenizer, "Filter::xradius - ")?,
+            "float yradius" => desc.yradius = extract_value(tokenizer, "Filter::yradius - ")?,
+            "float sigma" => desc.alpha = extract_value(tokenizer, "Filter::sigma - ")?,
+            "float tau" => desc.tau = extract_value(tokenizer, "Filter::tau - ")?,
+            "float B" => desc.b = extract_value(tokenizer, "Filter::B - ")?,
+            "float C" => desc.c = extract_value(tokenizer, "Filter::C - ")?,
+            _ => return Err(format!("Unsupported parameter in filter: {}", token).into())
+        }
+        Ok(())
+    };
+    let result = process_attributes(tokenizer, state, &mut process_attribute)?;
+
+    scene.filter = Some(desc);
+    Ok(result)
+}
+
+fn process_material(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
+                      state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+    let material_type = match tokenizer.next() {
+        Some(token) => token.trim(),
+        None => return Err("Material: Type of material not specified!".into())
+    };
+    // TODO improve this - use unique name
+    let name = format!("Material_generated_name_17654_{}", scene.materials.len());
+    let result = match material_type {
+        "diffuse" => process_diffuse_material(tokenizer, scene, state, &name),
+        _=> Err(format!("Unsupported material type {}", material_type).into())
+    };
+    state.set_material(name);
+    result
+}
+
+fn process_make_named_material(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
+                      state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+    let name = match tokenizer.next() {
+        Some(token) => token.trim(),
+        None => return Err("Make Named Material: Name of material not specified!".into())
+    };
+
+    let string_type = match tokenizer.next() {
+        Some(token) => token.trim(),
+        None => return Err("Make Named Material: Data type 'string type' of material not specified!".into())
+    };
+
+    if string_type != "string type" {
+        return Err(format!("Make Named Material: 'string type' is expected! - {}", string_type).into());
+    }
+
+    let material_type: String = extract_value(tokenizer, "Make Named Material: Type of material - ")?;
+
+    match material_type.as_str() {
+        "diffuse" => process_diffuse_material(tokenizer, scene, state, name),
+        _=> Err(format!("Make Named Material: Unsupported material type {}", material_type).into())
+    }
+}
+
+fn process_named_material(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
+                          state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+    let name = match tokenizer.next() {
+        Some(token) => token.trim(),
+        None => return Err("Named Material: Name of material not specified!".into())
+    };
+    state.set_material(name.to_string());
+    Ok(next_directive(tokenizer))
+}
+
 fn process_diffuse_material(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
-                              state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+                              state: &mut ParseState, name: &str) -> Result<Option<String>, Box<dyn Error>> {
 
     let mut desc = MaterialDescription::default();
 
@@ -547,12 +587,9 @@ fn process_diffuse_material(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDesc
     };
     let result = process_attributes(tokenizer, state, &mut process_attribute)?;
 
-    // TODO improve this -- use unique name - MakeNamedMaterial?!
-    let name = "Material_General_".to_string() + &scene.materials.len().to_string();
-    desc.name = name.clone();
+    desc.name = name.to_string();
     desc.typ = MaterialType::Matte;
-    scene.materials.push(desc);
-    state.set_material(name);
+    scene.materials.push(desc); 
     Ok(result)
 }
 
@@ -593,6 +630,45 @@ fn process_point_light(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescripti
     Ok(result)
 }
 
+fn process_area_light_source(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
+                             state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+    let token = match tokenizer.next() {
+        Some(token) => token.trim(),
+        None => return Err("AreaLightSource: Type of light not specified!".into())
+    };
+    match token {
+        "diffuse" => process_area_diffuse_light(tokenizer, scene, state),
+        _=> Err(format!("Unsupported area light type {}", token).into())
+    }
+}
+
+fn process_area_diffuse_light(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
+                              state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+
+    let mut desc = MaterialDescription::default();
+    desc.diffuse = RGB::new(0.0, 0.0, 0.0);
+
+    let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
+        match token {
+            "rgb reflectance" => desc.diffuse = parse_rgb(tokenizer, "Material:rgb ")?,
+            "rgb L" => desc.emission = parse_rgb(tokenizer, "Material:emission ")?,
+            _ => return Err(format!("Unsupported parameter in emissive diffuse material: {}", token).into())
+        }
+        Ok(())
+    };
+    let result = process_attributes(tokenizer, state, &mut process_attribute)?;
+
+    // TODO improve this - use unique name
+    let name = format!("Material_generated_name_emmisive_17654_{}", scene.materials.len());
+
+    desc.name = name.to_string();
+    desc.typ = MaterialType::EmissiveMatte;
+    scene.materials.push(desc);
+    state.set_area_light(name.to_string());
+    Ok(result)
+}
+
+
 fn process_shape(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
                       state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
     let token = match tokenizer.next() {
@@ -601,6 +677,7 @@ fn process_shape(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
     };
     match token {
         "sphere" => process_sphere_shape(tokenizer, scene, state),
+        "trianglemesh" => process_trianglemesh_shape(tokenizer, scene, state),
         _=> Err(format!("Unsupported shape type {}", token).into())
     }
 }
@@ -608,7 +685,7 @@ fn process_shape(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
 fn process_sphere_shape(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
                        state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
 
-    let mut desc = ShapeDescription::default();
+    let mut desc = SphereDescription::default();
 
     let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
         match token {
@@ -620,19 +697,76 @@ fn process_sphere_shape(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescript
     };
     let result = process_attributes(tokenizer, state, &mut process_attribute)?;
 
-    desc.typ = ShapeType::Sphere;
-    desc.material = state.current_material().clone();
+    desc.material = match state.area_lights.last() {
+        Some(name) => name.clone(),
+        None => state.current_material().clone()
+    };
+
     if !state.current_transformation().is_identity() {
         desc.transform = Some(state.current_transformation());
     }
-    scene.shapes.push(desc);
+    let shape = ShapeDescription::Sphere(desc);
+    scene.shapes.push(shape);
+    Ok(result)
+}
+
+fn process_trianglemesh_shape(tokenizer: &mut PBRTTokenizer, scene: &mut SceneDescription,
+                              state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+
+    let mut desc = MeshDescription::default();
+
+    let mut process_attribute = |tokenizer: &mut PBRTTokenizer, token: &str| -> Result<(), Box<dyn Error>> {
+        match token {
+            "point2 uv" => desc.uvs = Some(parse_point2_array(tokenizer, "Mesh:uvs - ")?),
+            "normal N" => desc.normals = Some(parse_normal_array(tokenizer, "Mesh:normals - ")?),
+            "point3 P" => desc.vertices = Some(parse_point3_array(tokenizer, "Mesh:positions - ")?),
+            "integer indices" => desc.indices = Some(parse_u32_array(tokenizer, "Mesh:indices - ")?),
+            _ => return Err(format!("Unsupported parameter in sphere shape: {}", token).into())
+        }
+        Ok(())
+    };
+    let result = process_attributes(tokenizer, state, &mut process_attribute)?;
+
+    desc.material = match state.area_lights.last() {
+        Some(name) => name.clone(),
+        None => state.current_material().clone()
+    };
+
+    if !state.current_transformation().is_identity() {
+        desc.transform = Some(state.current_transformation());
+    }
+
+    // NOTE: special case for one triangle
+    if desc.indices.is_none() {
+        match &desc.vertices {
+            Some(vertices) => {
+                if vertices.len() == 3 {
+                    desc.indices = Some(vec![0, 1, 2]);
+                }
+            }
+            None => {}
+        }
+    }
+    let shape = ShapeDescription::Mesh(desc);
+    scene.shapes.push(shape);
     Ok(result)
 }
 
 fn process_world_begin(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
                        state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
-    state.set_in_general_section(false);
-    state.set_transformation(Transformation::default());
+    state.set_transformation(Transformation::identity());
+    Ok(next_directive(tokenizer))
+}
+
+fn process_attribute_begin(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
+                           state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+    state.push_state();
+    Ok(next_directive(tokenizer))
+}
+
+fn process_attribute_end(tokenizer: &mut PBRTTokenizer, _scene: &mut SceneDescription,
+                           state: &mut ParseState) -> Result<Option<String>, Box<dyn Error>> {
+    state.pop_state();
     Ok(next_directive(tokenizer))
 }
 
@@ -684,7 +818,7 @@ fn parse_f32x3(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<(f32, f32
     Ok((v0, v1, v2))
 }
 
-fn parse_f32x3_values(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<Vec<f32>, Box<dyn Error>> {
+fn parse_f32_array(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<Vec<f32>, Box<dyn Error>> {
     let token = match tokenizer.next() {
         Some(token) => token.trim(),
         None => return Err(format!("{} - Missing token!", err_msg).into())
@@ -710,6 +844,75 @@ fn parse_f32x3_values(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<Ve
     Ok(values)
 }
 
+
+fn parse_point3_array(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<Vec<Point3>, Box<dyn Error>> {
+    let values = parse_f32_array(tokenizer, err_msg)?;
+    let mut result = Vec::<Point3>::new();
+    let chunks = values.chunks_exact(3);
+    let rest = chunks.remainder();
+    for chunk in chunks {
+        result.push(Point3::new(chunk[0], chunk[1], chunk[2]));
+    }
+    if !rest.is_empty() {
+        return Err(format!("{} - Expected 3 values per point!", err_msg).into());
+    }
+    Ok(result)
+}
+
+fn parse_point2_array(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<Vec<Point2>, Box<dyn Error>> {
+    let values = parse_f32_array(tokenizer, err_msg)?;
+    let mut result = Vec::<Point2>::new();
+    let chunks = values.chunks_exact(2);
+    let rest = chunks.remainder();
+    for chunk in chunks {
+        result.push(Point2::new(chunk[0], chunk[1]));
+    }
+    if !rest.is_empty() {
+        return Err(format!("{} - Expected 2 values per point!", err_msg).into());
+    }
+    Ok(result)
+}
+
+fn parse_normal_array(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<Vec<Normal>, Box<dyn Error>> {
+    let values = parse_f32_array(tokenizer, err_msg)?;
+    let mut result = Vec::<Normal>::new();
+    let chunks = values.chunks_exact(3);
+    let rest = chunks.remainder();
+    for chunk in chunks {
+        result.push(Normal::new(chunk[0], chunk[1], chunk[2]));
+    }
+    if !rest.is_empty() {
+        return Err(format!("{} - Expected 3 values per normal!", err_msg).into());
+    }
+    Ok(result)
+}
+
+
+fn parse_u32_array(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<Vec<u32>, Box<dyn Error>> {
+    let token = match tokenizer.next() {
+        Some(token) => token.trim(),
+        None => return Err(format!("{} - Missing token!", err_msg).into())
+    };
+    if token != "[" {
+        return Err(format!("{} - Expected '[' token!", err_msg).into());
+    }
+    let mut values = Vec::<u32>::new();
+    loop {
+        let token = match tokenizer.next() {
+            Some(token) => token.trim(),
+            None => return Err(format!("{} - Missing ']' token!", err_msg).into())
+        };
+        if token == "]" {
+            break;
+        }
+        let val: u32 = match token.parse() {
+            Err(e) => return Err(format!("{} - Parsing '{}':{}", err_msg, token, e).into()),
+            Ok(val) => val
+        };
+        values.push(val);
+    }
+    Ok(values)
+}
 
 fn extract_value<T>(tokenizer: &mut PBRTTokenizer, err_msg: &str) -> Result<T,  Box<dyn Error>>
 where T: FromStr, <T as FromStr>::Err: Display

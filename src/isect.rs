@@ -158,7 +158,7 @@ pub fn isect_ray_triangle(ray: &Ray, v0: Point3, v1: Point3, v2: Point3, tmin: f
     let e3 = a * p - b * r + d * s;
     let t = e3 * inv_denom;
 
-    if t < tmin {
+    if t <= tmin {
         return None
     }
     Some(t)

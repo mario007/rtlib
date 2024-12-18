@@ -9,6 +9,7 @@ use crate::lights::{LightDescription, LightInterface};
 use crate::samplers::SamplerInterface;
 use crate::samplers::RandomPathSampler;
 use crate::samplers::StratifiedPathSampler;
+use crate::filter::{FilterDescriptor, Filter};
 
 
 #[derive(Clone, Copy)]
@@ -108,7 +109,8 @@ pub struct SceneDescription {
     pub camera_desc: PerspectiveCameraDescriptor,
     pub materials: Vec<MaterialDescription>,
     pub shapes: Vec<ShapeDescription>,
-    pub lights: Vec<LightDescription>
+    pub lights: Vec<LightDescription>,
+    pub filter: Option<FilterDescriptor>
 }
 
 impl SceneDescription {
@@ -133,7 +135,8 @@ impl Default for SceneDescription {
             camera_desc: PerspectiveCameraDescriptor::default(),
             materials: Vec::new(),
             shapes: Vec::new(),
-            lights: Vec::new()
+            lights: Vec::new(),
+            filter: None
         }
     }
 }
@@ -146,10 +149,11 @@ pub struct Scene {
     pub geometry: Geometry,
     pub lights: Vec<Box<dyn LightInterface>>,
     pub sampler: Sampler,
+    pub filter: Option<Filter>
 }
 
 impl From<SceneDescription> for Scene {
-    fn from(desc: SceneDescription) -> Self {
+    fn from(mut desc: SceneDescription) -> Self {
         let mut materials = Vec::new();
         let mut mat_names = HashMap::new();
         for mat_desc in desc.materials.iter() {
@@ -160,20 +164,22 @@ impl From<SceneDescription> for Scene {
             mat_names.insert(mat_desc.name.clone(), materials.len());
             materials.push(mat);
         }
-        let geometry = Geometry::from_shape_descriptions(&desc.shapes, &mat_names);
+        let geometry = Geometry::from_shape_descriptions(&mut desc.shapes, &mat_names);
         let mut lights = Vec::new();
         for light_desc in desc.lights.iter() {
             let light = light_desc.create();
             lights.push(light);
         }
         let sampler = desc.sampler.unwrap_or(Sampler::Random(RandomSamplerSettings::default()));
+        let filter = desc.filter.map(|desc| desc.create());
         Self {
             settings: desc.settings,
             camera: desc.camera_desc.create(),
             materials,
             geometry,
             lights,
-            sampler
+            sampler,
+            filter
         }
     }
 }

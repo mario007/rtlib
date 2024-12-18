@@ -72,7 +72,7 @@ impl PerspectiveCameraDescriptor {
         let near_plane = self.near_plane.unwrap_or(0.01);
         let far_plane = self.far_plane.unwrap_or(1000.0);
         let up = self.up.unwrap_or(Vec3::new(0.0, 1.0, 0.0));
-        let camera_to_world = self.camera_to_world.unwrap_or(Transformation::look_at(self.position, self.look_at, up));
+        let camera_to_world = self.camera_to_world.unwrap_or(Transformation::look_at(self.position, self.look_at, up).inverse());
         PerspectiveCamera::new(self.resolution, self.fov, near_plane, far_plane, camera_to_world)
     }
 }
