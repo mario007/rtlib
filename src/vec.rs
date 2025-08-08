@@ -171,6 +171,7 @@ impl Index<usize> for Vec3 {
 }
 
 
+
 /// A 3-dimensional point.
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Represents a point in two-dimensional space.
@@ -188,6 +189,8 @@ impl Point2 {
         Self { x, y }
     }
 }
+
+
 
 /// A 3-dimensional point.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -308,6 +311,20 @@ impl Add<Vec3> for Point3 {
     }
 }
 
+impl Index<usize> for Point3 {
+    type Output = f32;
+
+    #[inline(always)]
+    fn index(&self, index: usize) -> &Self::Output {
+        match index {
+            0 => &self.x,
+            1 => &self.y,
+            2 => &self.z,
+            _ => panic!("Invalid index for Point3, expected 0, 1, or 2 and got {}", index),
+        }
+    }
+}
+
 /// A 3-dimensional normal vector.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Normal {
@@ -391,6 +408,7 @@ impl Sub for Normal {
         }
     }
 }
+
 
 impl SubAssign for Normal {
     #[inline(always)]

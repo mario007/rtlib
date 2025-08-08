@@ -1,8 +1,10 @@
 use crate::vec::{Point3, Normal, Vec3, Point2};
 use crate::transformations::Transformation;
 use crate::ray::Ray;
-use std::ops::Mul;
+use crate::bbox::AABB;
 use std::collections::HashMap;
+use crate::bvh::{BVH, BVHUp};
+
 
 pub trait Intersect {
     fn intersect(&self, ray: &Ray, tmin: f32) -> Option<f32>;
@@ -14,40 +16,6 @@ pub trait CalculateNormal {
 
 pub trait BoundingBox {
     fn bounding_box(&self) -> AABB;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct AABB {
-    min: Point3,
-    max: Point3,
-}
-
-impl AABB {
-    pub fn new(min: Point3, max: Point3) -> Self {
-        Self { min, max }
-    }
-
-    pub fn intersect(&self, ray_origin: Point3, ray_inv_direction: Vec3) -> bool {
-        crate::isect::isect_ray_bbox(ray_origin, ray_inv_direction, self.min, self.max)
-    }
-}
-
-impl Mul<Transformation> for AABB {
-    type Output = Self;
-    fn mul(self, rhs: Transformation) -> Self::Output {
-        let delta = self.max - self.min;
-        let p1 = rhs * self.min;
-        let p2 = rhs * self.max;
-        let p3 = rhs * (self.min + Vec3::new(delta.x, 0.0, 0.0));
-        let p4 = rhs * (self.min + Vec3::new(0.0, delta.y, 0.0));
-        let p5 = rhs * (self.min + Vec3::new(delta.x, delta.y, 0.0));
-        let p6 = rhs * (self.max + Vec3::new(delta.x, 0.0, 0.0));
-        let p7 = rhs * (self.max + Vec3::new(0.0, delta.y, 0.0));
-        let p8 = rhs * (self.max + Vec3::new(delta.x, delta.y, 0.0));
-        let min_p = p1.min(p2).min(p3).min(p4).min(p5).min(p6).min(p7).min(p8);
-        let max_p = p1.max(p2).max(p3).max(p4).max(p5).max(p6).max(p7).max(p8);
-        AABB::new(min_p, max_p)
-    }
 }
 
 pub struct LinearIntersector {
@@ -70,7 +38,7 @@ impl LinearIntersector {
     pub fn intersect(&self, ray: &Ray,
     isect_fn: &dyn Fn(usize, &Ray) -> Option<f32>) -> Option<ShapeIntersection> {
         let mut primitive_id = 0;
-        const BIG_NUMBER: f32 = 1e38;
+        const BIG_NUMBER: f32 = 1e30;
         let mut current_t = BIG_NUMBER;
         let rd = ray.direction;
         let inv_rd = Vec3::new(1.0 / rd.x, 1.0 / rd.y, 1.0 / rd.z);
@@ -184,8 +152,8 @@ impl<T: CalculateNormal> CalculateNormal for TransformedShape<T> {
 
 
 pub struct ShapeIntersection {
-    t: f32,
-    shape_id: usize,
+    pub t: f32,
+    pub shape_id: usize,
 }
 
 pub struct Primitives<T> {
@@ -255,6 +223,14 @@ impl Mesh {
         AABB::new(min_p, max_p)
     }
 
+    pub fn centroid(&self, triangle_id: usize) -> Point3 {
+        let vertices = triangle_id * 3;
+        let v0 = self.vertices[self.indices[vertices] as usize];
+        let v1 = self.vertices[self.indices[vertices + 1] as usize];
+        let v2 = self.vertices[self.indices[vertices + 2] as usize];
+        (v0 + v1 + v2) * (1.0 / 3.0)
+    }
+
     pub fn normal(&self, triangle_id: usize) -> Normal {
         let vertices = triangle_id * 3;
         let v0 = self.vertices[self.indices[vertices] as usize];
@@ -284,6 +260,8 @@ pub struct Triangles {
 
     triangles: Vec<Triangle>,
     linear_intersector: LinearIntersector,
+    bvh: BVH,
+    bvh_up: BVHUp,
 }
 
 impl Triangles {
@@ -294,6 +272,8 @@ impl Triangles {
             material_ids: Vec::new(),
             triangles: Vec::new(),
             linear_intersector: LinearIntersector::new(),
+            bvh: BVH::new(),
+            bvh_up: BVHUp::new(),
         }
     }
 
@@ -303,7 +283,10 @@ impl Triangles {
             let mesh = &self.meshes[triangle.mesh_id as usize];
             mesh.bounding_box(triangle.triangle_id as usize)
         };
+
         self.linear_intersector.prepare_for_rendering(self.triangles.len(), &calculate_bbox_fn);
+        // self.bvh.build(self.triangles.len(), &calculate_bbox_fn);
+        // self.bvh_up.build(self.triangles.len(), &calculate_bbox_fn);
     }
 
     pub fn add(&mut self, mut mesh: Mesh, object_to_world: Option<Transformation>, material_id: u32) {
@@ -343,6 +326,8 @@ impl Triangles {
             mesh.intersect(triangle.triangle_id as usize, ray, 0.000001)
         };
         self.linear_intersector.intersect(ray, &isect_fn)
+        // self.bvh.intersect(ray, &isect_fn)
+        // self.bvh_up.intersect(ray, &isect_fn)
     }
 
 }

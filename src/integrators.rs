@@ -260,14 +260,14 @@ mod tests {
     fn test_render_scene() {
         // let path = "D://rtlib_scenes//sphere//sphere.json";
         // let path = "D://rtlib_scenes//spheres//spheres.json";
-        let path = "D://rtlib_scenes//spheres_trans//spheres.json";
-        let scene_descripton = load_scene_description_from_json(path);
+        // let path = "D://rtlib_scenes//spheres_trans//spheres.json";
+        // let scene_descripton = load_scene_description_from_json(path);
 
         // let path = "D://rtlib_scenes//sphere//sphere.pbrt";
         // let path = "D://rtlib_scenes//spheres//spheres.pbrt";
         // let path = "D://rtlib_scenes//spheres_trans//spheres.pbrt";
-        // let path = "D://rtlib_scenes//cornell//scene-v4.pbrt";
-        // let scene_descripton = parse_pbrt_v4_input_file(path);
+        let path = "D://rtlib_scenes//cornell//scene-v4.pbrt";
+        let scene_descripton = parse_pbrt_v4_input_file(path);
 
         let scene_description = match scene_descripton {    
             Ok(scene_descripton) => {

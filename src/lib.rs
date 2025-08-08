@@ -27,6 +27,8 @@ pub mod pbrt_v4;
 pub mod integrators;
 pub mod samplers;
 pub mod filter;
+pub mod bvh;
+pub mod bbox;
 
 pub use crate::color::{RGBPixelSample, AccumlationBuffer};
 pub use crate::rgb::ImageSize;

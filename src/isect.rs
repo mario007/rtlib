@@ -116,6 +116,53 @@ pub fn isect_ray_bbox(ray_origin: Point3, ray_inv_dir: Vec3, bbox_min: Point3, b
     tmin <= tmax
 }
 
+
+#[inline(always)]
+pub fn isect_ray_bbox_info(ray_origin: Point3, ray_inv_dir: Vec3, bbox_min: Point3, bbox_max: Point3) -> Option<(bool, f32)> {
+
+    #[inline(always)]
+    fn min(x: f32, y: f32) -> f32 {
+        if x < y {x} else {y}
+    }
+
+    #[inline(always)]
+    fn max(x: f32, y: f32) -> f32 {
+        if x > y {x} else {y}
+    }
+
+    let mut tmin = 0.0;
+    let mut tmax = 1e38;
+
+    let t1 = (bbox_min.x - ray_origin.x) * ray_inv_dir.x;
+    let t2 = (bbox_max.x - ray_origin.x) * ray_inv_dir.x;
+
+    tmin = min(max(t1, tmin), max(t2, tmin));
+    tmax = max(min(t1, tmax), min(t2, tmax));
+
+    let t1 = (bbox_min.y - ray_origin.y) * ray_inv_dir.y;
+    let t2 = (bbox_max.y - ray_origin.y) * ray_inv_dir.y;
+
+    tmin = min(max(t1, tmin), max(t2, tmin));
+    tmax = max(min(t1, tmax), min(t2, tmax));
+
+    let t1 = (bbox_min.z - ray_origin.z) * ray_inv_dir.z;
+    let t2 = (bbox_max.z - ray_origin.z) * ray_inv_dir.z;
+
+    tmin = min(max(t1, tmin), max(t2, tmin));
+    tmax = max(min(t1, tmax), min(t2, tmax));
+
+    //if tmin < 0 you are inside of box t = tmax
+    if tmax > tmin.max(0.0) {
+        if tmin < 0.0 {
+            return Some((true, tmax));
+        } else {
+            return Some((false, tmin));
+        }
+    }
+    None
+}
+
+
 pub fn isect_ray_triangle(ray: &Ray, v0: Point3, v1: Point3, v2: Point3, tmin: f32) -> Option<f32> {
 
     let a = v0.x - v1.x;
@@ -212,5 +259,17 @@ mod tests {
         let t2 = isect_ray_sphere2(origin , direction, position, radius, tmax);
         println!("{:?}", t1);
         println!("{:?}", t2);
+    }
+
+    #[test]
+    fn isect_ray_bbox_test() {
+        let origin = Point3::new(0.0, 0.0, -2.0);
+        let direction = Vec3::new(0.0, 0.00, 1.0).normalize();
+        let inv_direction = Vec3::new(1.0 / direction.x, 1.0 / direction.y, 1.0 / direction.z);
+        let bbox_min = Point3::new(-1.0, -1.0, -1.0);
+        let bbox_max = Point3::new(1.0, 1.0, 1.0);
+        let t = isect_ray_bbox(origin, inv_direction, bbox_min, bbox_max);
+       
+        println!("{:?}", t);
     }
 }
