@@ -29,6 +29,11 @@ pub mod samplers;
 pub mod filter;
 pub mod bvh;
 pub mod bbox;
+pub mod vk_handles;
+pub mod vk_types;
+pub mod vk_const;
+pub mod vk;
+pub mod vk_compute;
 
 pub use crate::color::{RGBPixelSample, AccumlationBuffer};
 pub use crate::rgb::ImageSize;
